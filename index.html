@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ficha de participación - ANIVER5ARIO OCGC</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/png" href="assets/logo_OCGC_simple.png">
+    
+    <!-- Flatpickr (Calendario) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+</head>
+
+<body>
+    <div class="container">
+        <header class="form-header">
+            <img src="assets/logo_OCGC.png" alt="Logo OCGC" class="header-logo">
+            <h2>Ficha de participación
+                <br>
+                Programa ANIVER5ARIO OCGC</h2>
+            <div class="description" style="text-align: left;">
+                <div class="section-description">
+                    <p style="margin-bottom: 15px;">Para poder planificar adecuadamente los ensayos y la plantilla de músicos de este programa, necesitamos conocer con la mayor precisión posible la disponibilidad de cada integrante.</p>
+                    <p style="margin-bottom: 15px;">La OCGC se sostiene gracias al compromiso de las personas que la integran. Por ello, esta ficha no pretende limitar la participación, sino ayudarnos a organizar el trabajo de la forma más realista posible para que el proceso musical funcione bien para todos.</p>
+                    <p style="margin-bottom: 15px;">Te pedimos que, tras leer detenidamente la planificación del programa, completes la información con sinceridad. Esto nos permitirá planificar mejor los ensayos y tomar decisiones adecuadas sobre la plantilla del programa.</p>
+                    
+                    <p style="margin-bottom: 15px;">
+                        <!--
+                        <a href="assets/planificacion_aniversario.pdf" id="downloadPlan" download="Planificacion_ANIVER5ARIO_OCGC.pdf" target="_blank" style="color: var(--primary-color); font-weight: 600; text-decoration: underline;">
+                            Planificación del programa
+                        </a>
+                        -->
+                        <button type="button" id="downloadPlan" class="btn-link">
+                            Planificación del programa
+                        </button>
+                    </p>
+                </div>
+            </div>
+        </header>
+
+        <form id="responseForm">
+            <!-- Initial Checkbox (Oculto hasta descargar) -->
+            <section id="confirmation-section" class="form-section hidden">
+                <div class="form-group checkbox-group" style="display: flex; align-items: flex-start; gap: 10px; background: #eaf2f8; border-color: #d4e6f1;">
+                    <input type="checkbox" id="readPlanification" name="readPlanification" required style="width: 20px; height: 20px; margin-top: 3px; cursor: pointer;">
+                    <label for="readPlanification" style="margin-bottom: 0; cursor: pointer;"><strong>He leído detenidamente la planificación de ensayos y conciertos del programa</strong></label>
+                </div>
+            </section>
+
+            <!-- Rest of the form, hidden by default -->
+            <div id="rest-of-form" class="hidden">
+                <!-- Datos personales -->
+                <section class="form-section">
+                    <h4>Datos personales</h4>
+                    <div class="form-group">
+                        <label for="fullName"><strong>Nombre y apellidos:</strong> <span class="required-asterisk">*</span></label>
+                        <input type="text" id="fullName" name="fullName" class="conditional-required" placeholder="Escriba su nombre completo">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="instrument"><strong>Instrumento:</strong> <span class="required-asterisk">*</span></label>
+                        <select id="instrument" name="instrument" class="conditional-required">
+                            <option value="" disabled selected>Seleccione su instrumento</option>
+                            <option value="Arpa">Arpa</option>
+                            <option value="Clarinete">Clarinete</option>
+                            <option value="Contrabajo">Contrabajo</option>
+                            <option value="Fagot">Fagot</option>
+                            <option value="Flauta">Flauta</option>
+                            <option value="Oboe">Oboe</option>
+                            <option value="Órgano">Órgano</option>
+                            <option value="Percusión">Percusión</option>
+                            <option value="Piano">Piano</option>
+                            <option value="Trombón">Trombón</option>
+                            <option value="Trompa">Trompa</option>
+                            <option value="Trompeta">Trompeta</option>
+                            <option value="Tuba">Tuba</option>
+                            <option value="Viola">Viola</option>
+                            <option value="Violín primero">Violín primero</option>
+                            <option value="Violín segundo">Violín segundo</option>
+                            <option value="Violonchelo">Violonchelo</option>
+                            <option value="Otro">Otro</option>
+                        </select>
+                    </div>
+                </section>
+
+                <!-- Participación en los conciertos -->
+                <section class="form-section">
+                    <h4>Participación en los conciertos de ANIVER5ARIO</h4>
+                    <p style="margin-bottom: 15px; color: #555;"><i>14 de junio, Gran Canaria - 20 junio, Fuerteventura</i></p>
+                    
+                    <div class="form-group">
+                        <label><strong>Selecciona tu disponibilidad:</strong> <span class="required-asterisk">*</span></label>
+                        <div class="radio-group" style="flex-direction: column;">
+                            <label class="radio-option">
+                                <input type="radio" name="concertAvailability" value="Ambos conciertos" class="conditional-required">
+                                <span>Puedo participar en <strong>ambos conciertos</strong></span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="concertAvailability" value="Solo 14 junio (Gran Canaria)">
+                                <span>Puedo participar <strong>solo en el concierto del 14</strong> de junio (Gran Canaria)</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="concertAvailability" value="Solo 20 junio (Fuerteventura)">
+                                <span>Puedo participar <strong>solo en el concierto del 20</strong> de junio (Fuerteventura)</span>
+                            </label>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Compromiso de asistencia a los ensayos -->
+                <section class="form-section">
+                    <h4>Compromiso de asistencia a los ensayos</h4>
+                    
+                    <div class="form-group">
+                        <label><strong>Indica cuál es tu situación para este programa:</strong> <span class="required-asterisk">*</span></label>
+                        <div class="radio-group" style="flex-direction: column;">
+                            <label class="radio-option">
+                                <input type="radio" name="rehearsalCommitment" value="Asistencia regular" class="conditional-required">
+                                <span>Puedo asistir <strong>regularmente</strong> a los ensayos previstos.</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="rehearsalCommitment" value="Asistencia a la mayoría, salvo fechas">
+                                <span>Puedo asistir <strong>a la mayoría</strong> de los ensayos, <strong>salvo en las siguientes fechas</strong>.<br>
+                                <small class="clarification">Al seleccionar esta opción se desplegarán los calendarios para indicar los días en los que<strong> no</strong> podrías asistir.</small></span>
+                            </label>
+
+                            <div class="form-group hidden" id="absence-dates-group" style="border: none; padding: 0; margin-top: 10px;">
+                                <label><strong>Selección de fechas</strong><br><i>Indica <strong>solo los días que no</strong> podrías asistir.</i> <span class="required-asterisk">*</span></label>
+                                
+                                <div class="calendars-grid">
+                                    <input type="text" id="cal-march" class="cal-inline" placeholder="">
+                                    <input type="text" id="cal-april" class="cal-inline" placeholder="">
+                                    <input type="text" id="cal-may" class="cal-inline" placeholder="">
+                                    <input type="text" id="cal-june" class="cal-inline" placeholder="">
+                                </div>
+
+                                <div class="calendar-legend" id="calendarLegend">
+                                    <!-- Se generará dinámicamente desde JS -->
+                                </div>
+                                <input type="hidden" id="absenceDates" name="absenceDates">
+                            </div>
+
+                            <label class="radio-option">
+                                <input type="radio" name="rehearsalCommitment" value="No puedo comprometer asistencia regular">
+                                <span><strong>No puedo comprometer una asistencia regular</strong> a los ensayos.</span>
+                            </label>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Observaciones -->
+                <section class="form-section">
+                    <h4>Observaciones</h4>
+                    <div class="form-group">
+                        <label for="observations">Si lo consideras oportuno, puedes indicar aquí cualquier circunstancia que pueda afectar a tu asistencia a ensayos o conciertos durante este programa</label>
+                        <textarea id="observations" name="observations" rows="4" placeholder="Escribe aquí tus observaciones (Opcional)"></textarea>
+                    </div>
+                </section>
+
+                <div class="form-footer">
+                    <button type="submit" id="submitBtn">Enviar Respuesta</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Modal para el PDF -->
+    <div id="pdfModal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <iframe src="assets/planificacion_aniversario.pdf" frameborder="0" width="100%" height="100%"></iframe>
+        </div>
+    </div>
+
+    <!-- Flatpickr (Calendario) JS -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
+
+    <!-- Firebase SDKs -->
+    <script type="module" src="script.js"></script>
+</body>
+
+</html>

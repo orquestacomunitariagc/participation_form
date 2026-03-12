@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>¡Gracias! - Ficha de participación OCGC</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/png" href="assets/logo_OCGC_simple.png">
+    <style>
+        .success-content {
+            text-align: center;
+            padding: 40px 0;
+        }
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto 30px;
+            font-size: 40px;
+            animation: scaleIn 0.5s ease-out;
+        }
+        @keyframes scaleIn {
+            from { transform: scale(0); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .thank-you-title {
+            color: var(--secondary-color);
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+        }
+        .thank-you-text {
+            color: #555;
+            margin-bottom: 40px;
+            font-size: 1.1rem;
+            line-height: 1.8;
+        }
+        .btn-back {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--secondary-color) 0%, #2c3e50 100%);
+            color: #fff;
+            padding: 14px 32px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: var(--transition);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .btn-back:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 14px rgba(0, 0, 0, 0.15);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="form-header">
+            <div class="header-logo">
+                <img src="assets/logo_OCGC.png" alt="Logo OCGC">
+            </div>
+        </header>
+
+        <div class="success-content">
+            <div class="success-icon">✓</div>
+            <h2 class="thank-you-title">¡Formulario enviado con éxito!</h2>
+            <p class="thank-you-text">
+                Muchas gracias por completar tu ficha de participación.<br>
+                Tus datos han sido registrados correctamente en nuestra base de datos para la planificación del <strong>ANIVER5ARIO OCGC</strong>.
+            </p>
+            <p style="color: #666; font-size: 0.9rem; margin-bottom: 30px; font-style: italic;">
+                Ya puedes cerrar esta pestaña.
+            </p>
+            <a href="index.html" class="btn"
+                style="text-decoration: none; color: var(--primary-color); font-weight: bold;">Volver al inicio</a>
+        </div>
+    </div>
+</body>
+</html>
