@@ -31,22 +31,26 @@ document.addEventListener('DOMContentLoaded', async () => {
                 pdfViewer.innerHTML = '<div style="color:white; text-align:center; padding:50px; font-weight:600; font-family: inherit;">Cargando documento, por favor espera...</div>';
                 
                 // Configurar el entorno de PDF.js
-                const pdfjsLib = window['pdfjs-dist/build/pdf'];
+                const pdfjsLib = window.pdfjsLib || window['pdfjs-dist/build/pdf'];
                 if (pdfjsLib) {
                     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
                     
                     pdfjsLib.getDocument(pdfPath).promise.then(function(pdfDoc) {
                         pdfViewer.innerHTML = ''; // Limpiar mensaje de carga
 
-                        // Extraer y renderizar cada página del PDF en alta calidad
+                        // Renderizar cada página
                         for(let num = 1; num <= pdfDoc.numPages; num++) {
                             const canvas = document.createElement('canvas');
                             pdfViewer.appendChild(canvas);
                             
                             pdfDoc.getPage(num).then(function(page) {
                                 const ctx = canvas.getContext('2d');
-                                // Aumentamos la resolución para máxima nitidez (Retina Display friendly)
-                                const scale = Math.max(2, window.devicePixelRatio || 2);
+                                
+                                // Calculamos escala dinámica basada en el ancho del visor para evitar zoom manual
+                                const unscaledViewport = page.getViewport({scale: 1});
+                                const viewerWidth = pdfViewer.clientWidth - 30; // 30 es el padding
+                                const scale = (viewerWidth / unscaledViewport.width) * (window.devicePixelRatio || 1);
+                                
                                 const viewport = page.getViewport({scale: scale}); 
                                 
                                 canvas.height = viewport.height;
@@ -63,14 +67,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         console.error('Error procesando PDF: ', error);
                         pdfViewer.innerHTML = `
                             <div style="color:white; text-align:center; padding:40px;">
-                                <p style="margin-bottom:20px; font-size: 1.1rem;">Tu navegador está bloqueando la visualización directa.</p>
-                                <a href="${pdfPath}" target="_blank" style="background:var(--primary-color); color:white; padding:12px 24px; border-radius:50px; text-decoration:none; font-weight:bold; display:inline-block; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">Ver PDF ahora</a>
+                                <p style="margin-bottom:20px; font-size: 1.1rem;">Hubo un error al cargar el visor directo.</p>
+                                <a href="${pdfPath}" target="_blank" style="background:var(--primary-color); color:white; padding:12px 24px; border-radius:50px; text-decoration:none; font-weight:bold; display:inline-block;">Abrir PDF en nueva pestaña</a>
                             </div>
                         `;
                     });
                 } else {
-                    // Fallback de seguridad si falla la red externa
-                    pdfViewer.innerHTML = `<iframe src="${pdfPath}#toolbar=0" style="width:100%; height:100%; border:none;"></iframe>`;
+                    pdfViewer.innerHTML = '<div style="color:white; text-align:center; padding:50px;">Error: No se pudo cargar el motor de PDF. Revisa tu conexión.</div>';
                 }
             }
             

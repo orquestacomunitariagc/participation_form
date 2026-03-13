@@ -164,9 +164,14 @@
 
     <!-- Modal para el PDF -->
     <div id="pdfModal" class="modal hidden">
-        <span class="close-modal">&times;</span>
-        <div class="modal-content" id="pdfViewer">
-            <!-- El documento se inyectará dinámicamente aquí para evitar bloqueos en móviles -->
+        <div class="modal-content">
+            <div class="modal-header-bar">
+                <span>Planificación del Programa</span>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body" id="pdfViewer">
+                <!-- El contenido se inyectará aquí mediante PDF.js -->
+            </div>
         </div>
     </div>
 
@@ -178,7 +183,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
     <!-- Firebase SDKs -->
-    <script type="module" src="script.js"></script>
+    <script type="module" src="script.js?v=2"></script>
 </body>
 
 </html>
