@@ -25,11 +25,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         downloadPlan.addEventListener('click', () => {
             const pdfViewer = document.getElementById('pdfViewer');
             if (pdfViewer) {
-                // Inyectar el visor solo si está vacío (evita recargas innecesarias)
+                // Inyectar el visor solo si está vacío
                 if (!pdfViewer.innerHTML.trim() || pdfViewer.innerHTML.includes('<!--')) {
-                    pdfViewer.innerHTML = `<iframe src="assets/planificacion_aniversario.pdf" frameborder="0" width="100%" height="100%" style="border-radius: 8px;"></iframe>`;
+                    const pdfPath = 'assets/planificacion_aniversario.pdf';
+                    // Si estamos en un servidor (GitHub), usamos el visor de Google como bypass para móviles
+                    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:';
+                    
+                    if (!isLocal) {
+                        const absoluteUrl = new URL(pdfPath, window.location.href).href;
+                        pdfViewer.innerHTML = `<iframe src="https://docs.google.com/viewer?url=${encodeURIComponent(absoluteUrl)}&embedded=true" frameborder="0" width="100%" height="100%"></iframe>`;
+                    } else {
+                        // En local usamos iframe normal para que funcione sin internet
+                        pdfViewer.innerHTML = `<iframe src="${pdfPath}" frameborder="0" width="100%" height="100%"></iframe>`;
+                    }
                 }
             }
+            // ... resto de la lógica del modal
             
             if (pdfModal) {
                 pdfModal.classList.remove('hidden');

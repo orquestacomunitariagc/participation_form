@@ -334,6 +334,25 @@ input.cal-inline {
     border-radius: var(--border-radius);
     position: relative;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Optimización para móviles (PDF a pantalla completa) */
+@media (max-width: 768px) {
+    .modal-content {
+        width: 100vw;
+        height: 100vh;
+        border-radius: 0;
+    }
+    .close-modal {
+        top: 10px;
+        right: 10px;
+        width: 35px;
+        height: 35px;
+        font-size: 24px;
+        background: rgba(255, 255, 255, 0.9);
+    }
 }
 
 .close-modal {
