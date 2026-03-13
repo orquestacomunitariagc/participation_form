@@ -28,16 +28,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Inyectar el visor solo si está vacío
                 if (!pdfViewer.innerHTML.trim() || pdfViewer.innerHTML.includes('<!--')) {
                     const pdfPath = 'assets/planificacion_aniversario.pdf';
-                    // Si estamos en un servidor (GitHub), usamos el visor de Google como bypass para móviles
-                    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:';
-                    
-                    if (!isLocal) {
-                        const absoluteUrl = new URL(pdfPath, window.location.href).href;
-                        pdfViewer.innerHTML = `<iframe src="https://docs.google.com/viewer?url=${encodeURIComponent(absoluteUrl)}&embedded=true" frameborder="0" width="100%" height="100%"></iframe>`;
-                    } else {
-                        // En local usamos iframe normal para que funcione sin internet
-                        pdfViewer.innerHTML = `<iframe src="${pdfPath}" frameborder="0" width="100%" height="100%"></iframe>`;
-                    }
+                    // Usamos un visor de iframe estándar pero con parámetros que ayudan a móviles
+                    pdfViewer.innerHTML = `
+                        <iframe src="${pdfPath}#toolbar=0&navpanes=0" width="100%" height="100%" style="border: none;">
+                            <p>Tu navegador no puede mostrar este PDF. <a href="${pdfPath}" target="_blank" style="color: var(--primary-color);">Clica aquí para descargarlo</a></p>
+                        </iframe>
+                    `;
                 }
             }
             // ... resto de la lógica del modal
