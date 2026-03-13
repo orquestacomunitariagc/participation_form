@@ -24,23 +24,60 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (downloadPlan) {
         downloadPlan.addEventListener('click', () => {
             const pdfViewer = document.getElementById('pdfViewer');
-            if (pdfViewer) {
-                // Inyectar el visor solo si está vacío
-                if (!pdfViewer.innerHTML.trim() || pdfViewer.innerHTML.includes('<!--')) {
-                    const pdfPath = 'assets/planificacion_aniversario.pdf';
-                    // Usamos un visor de iframe estándar pero con parámetros que ayudan a móviles
-                    pdfViewer.innerHTML = `
-                        <iframe src="${pdfPath}#toolbar=0&navpanes=0" width="100%" height="100%" style="border: none;">
-                            <p>Tu navegador no puede mostrar este PDF. <a href="${pdfPath}" target="_blank" style="color: var(--primary-color);">Clica aquí para descargarlo</a></p>
-                        </iframe>
-                    `;
+            const pdfPath = 'assets/planificacion_aniversario.pdf';
+            
+            // Comprobamos si el visor no tiene ya los lienzos generados por PDF.js
+            if (pdfViewer && (!pdfViewer.innerHTML.trim() || !pdfViewer.querySelector('canvas'))) {
+                pdfViewer.innerHTML = '<div style="color:white; text-align:center; padding:50px; font-weight:600; font-family: inherit;">Cargando documento, por favor espera...</div>';
+                
+                // Configurar el entorno de PDF.js
+                const pdfjsLib = window['pdfjs-dist/build/pdf'];
+                if (pdfjsLib) {
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                    
+                    pdfjsLib.getDocument(pdfPath).promise.then(function(pdfDoc) {
+                        pdfViewer.innerHTML = ''; // Limpiar mensaje de carga
+
+                        // Extraer y renderizar cada página del PDF en alta calidad
+                        for(let num = 1; num <= pdfDoc.numPages; num++) {
+                            const canvas = document.createElement('canvas');
+                            pdfViewer.appendChild(canvas);
+                            
+                            pdfDoc.getPage(num).then(function(page) {
+                                const ctx = canvas.getContext('2d');
+                                // Aumentamos la resolución para máxima nitidez (Retina Display friendly)
+                                const scale = Math.max(2, window.devicePixelRatio || 2);
+                                const viewport = page.getViewport({scale: scale}); 
+                                
+                                canvas.height = viewport.height;
+                                canvas.width = viewport.width;
+                                
+                                const renderContext = {
+                                    canvasContext: ctx,
+                                    viewport: viewport
+                                };
+                                page.render(renderContext);
+                            });
+                        }
+                    }).catch(function(error) {
+                        console.error('Error procesando PDF: ', error);
+                        pdfViewer.innerHTML = `
+                            <div style="color:white; text-align:center; padding:40px;">
+                                <p style="margin-bottom:20px; font-size: 1.1rem;">Tu navegador está bloqueando la visualización directa.</p>
+                                <a href="${pdfPath}" target="_blank" style="background:var(--primary-color); color:white; padding:12px 24px; border-radius:50px; text-decoration:none; font-weight:bold; display:inline-block; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">Ver PDF ahora</a>
+                            </div>
+                        `;
+                    });
+                } else {
+                    // Fallback de seguridad si falla la red externa
+                    pdfViewer.innerHTML = `<iframe src="${pdfPath}#toolbar=0" style="width:100%; height:100%; border:none;"></iframe>`;
                 }
             }
-            // ... resto de la lógica del modal
             
+            // Mostrar modal siempre
             if (pdfModal) {
                 pdfModal.classList.remove('hidden');
-                document.body.style.overflow = 'hidden'; // Evitar scroll de fondo
+                document.body.style.overflow = 'hidden';
             }
             if (confirmationSection) {
                 confirmationSection.classList.remove('hidden');
