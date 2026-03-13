@@ -26,32 +26,35 @@ document.addEventListener('DOMContentLoaded', async () => {
             const pdfViewer = document.getElementById('pdfViewer');
             const pdfPath = 'assets/planificacion_aniversario.pdf';
             
-            // Comprobamos si el visor no tiene ya los lienzos generados por PDF.js
+            // 1. Mostrar el modal PRIMERO para que tenga dimensiones reales
+            if (pdfModal) {
+                pdfModal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            }
+            if (confirmationSection) {
+                confirmationSection.classList.remove('hidden');
+            }
+
+            // 2. Cargar el PDF si no está cargado
             if (pdfViewer && (!pdfViewer.innerHTML.trim() || !pdfViewer.querySelector('canvas'))) {
-                pdfViewer.innerHTML = '<div style="color:white; text-align:center; padding:50px; font-weight:600; font-family: inherit;">Cargando documento, por favor espera...</div>';
+                pdfViewer.innerHTML = '<div style="color:white; text-align:center; padding:50px; font-weight:600; font-family: inherit;">Cargando documento profesional...</div>';
                 
-                // Configurar el entorno de PDF.js
                 const pdfjsLib = window.pdfjsLib || window['pdfjs-dist/build/pdf'];
                 if (pdfjsLib) {
                     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
                     
                     pdfjsLib.getDocument(pdfPath).promise.then(function(pdfDoc) {
-                        pdfViewer.innerHTML = ''; // Limpiar mensaje de carga
-
-                        // Renderizar cada página
+                        pdfViewer.innerHTML = ''; 
+                        
                         for(let num = 1; num <= pdfDoc.numPages; num++) {
                             const canvas = document.createElement('canvas');
                             pdfViewer.appendChild(canvas);
                             
                             pdfDoc.getPage(num).then(function(page) {
                                 const ctx = canvas.getContext('2d');
-                                
-                                // Calculamos escala dinámica basada en el ancho del visor para evitar zoom manual
-                                const unscaledViewport = page.getViewport({scale: 1});
-                                const viewerWidth = pdfViewer.clientWidth - 30; // 30 es el padding
-                                const scale = (viewerWidth / unscaledViewport.width) * (window.devicePixelRatio || 1);
-                                
-                                const viewport = page.getViewport({scale: scale}); 
+                                // Escala fija de alta definición (2.0) para que sea nítido en todo dispositivo
+                                // El CSS se encargará de ajustarlo al ancho de la pantalla
+                                const viewport = page.getViewport({scale: 2.0}); 
                                 
                                 canvas.height = viewport.height;
                                 canvas.width = viewport.width;
@@ -67,23 +70,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                         console.error('Error procesando PDF: ', error);
                         pdfViewer.innerHTML = `
                             <div style="color:white; text-align:center; padding:40px;">
-                                <p style="margin-bottom:20px; font-size: 1.1rem;">Hubo un error al cargar el visor directo.</p>
-                                <a href="${pdfPath}" target="_blank" style="background:var(--primary-color); color:white; padding:12px 24px; border-radius:50px; text-decoration:none; font-weight:bold; display:inline-block;">Abrir PDF en nueva pestaña</a>
+                                <p style="margin-bottom:20px;">Hubo un problema al cargar el visor.</p>
+                                <a href="${pdfPath}" target="_blank" style="background:var(--primary-color); color:white; padding:12px 24px; border-radius:50px; text-decoration:none; font-weight:bold;">Ver PDF directamente</a>
                             </div>
                         `;
                     });
                 } else {
-                    pdfViewer.innerHTML = '<div style="color:white; text-align:center; padding:50px;">Error: No se pudo cargar el motor de PDF. Revisa tu conexión.</div>';
+                    pdfViewer.innerHTML = '<div style="color:white; text-align:center; padding:50px;">Error: No se pudo cargar el motor de PDF.</div>';
                 }
-            }
-            
-            // Mostrar modal siempre
-            if (pdfModal) {
-                pdfModal.classList.remove('hidden');
-                document.body.style.overflow = 'hidden';
-            }
-            if (confirmationSection) {
-                confirmationSection.classList.remove('hidden');
             }
         });
     }
