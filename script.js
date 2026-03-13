@@ -23,6 +23,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Manejar apertura del modal del PDF
     if (downloadPlan) {
         downloadPlan.addEventListener('click', () => {
+            const pdfViewer = document.getElementById('pdfViewer');
+            if (pdfViewer) {
+                // Inyectar el visor solo si está vacío (evita recargas innecesarias)
+                if (!pdfViewer.innerHTML.trim() || pdfViewer.innerHTML.includes('<!--')) {
+                    pdfViewer.innerHTML = `<iframe src="assets/planificacion_aniversario.pdf" frameborder="0" width="100%" height="100%" style="border-radius: 8px;"></iframe>`;
+                }
+            }
+            
             if (pdfModal) {
                 pdfModal.classList.remove('hidden');
                 document.body.style.overflow = 'hidden'; // Evitar scroll de fondo
