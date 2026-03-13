@@ -128,11 +128,8 @@
                             <div class="form-group hidden" id="absence-dates-group" style="border: none; padding: 0; margin-top: 10px;">
                                 <label><strong>Selección de fechas</strong><br><i>Indica <strong>solo los días que no</strong> podrías asistir.</i> <span class="required-asterisk">*</span></label>
                                 
-                                <div class="calendars-grid">
-                                    <input type="text" id="cal-march" class="cal-inline" placeholder="">
-                                    <input type="text" id="cal-april" class="cal-inline" placeholder="">
-                                    <input type="text" id="cal-may" class="cal-inline" placeholder="">
-                                    <input type="text" id="cal-june" class="cal-inline" placeholder="">
+                                <div class="calendars-grid" id="dynamicCalendarsContainer">
+                                    <!-- Los calendarios se generarán dinámicamente aquí -->
                                 </div>
 
                                 <div class="calendar-legend" id="calendarLegend">
@@ -167,8 +164,8 @@
 
     <!-- Modal para el PDF -->
     <div id="pdfModal" class="modal hidden">
+        <span class="close-modal">&times;</span>
         <div class="modal-content">
-            <span class="close-modal">&times;</span>
             <iframe src="assets/planificacion_aniversario.pdf" frameborder="0" width="100%" height="100%"></iframe>
         </div>
     </div>

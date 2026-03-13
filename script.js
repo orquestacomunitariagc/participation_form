@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pdfModal = document.getElementById('pdfModal');
     const closeModal = document.querySelector('.close-modal');
 
-    let fpMarch, fpApril, fpMay, fpJune; // Declaradas aquí para ser accesibles globalmente en el scope
+    let fpInstances = []; // Array para guardar todas las instancias dinámicas
 
     // Manejar apertura del modal del PDF
     if (downloadPlan) {
@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const text = await response.text();
             
             const allowed = [];
-            const categories = new Set();
+            const categoriesMap = new Map(); // Mapa de lowercase -> OriginalName
             
             text.split('\n').filter(l => l.trim()).forEach(line => {
                 const parts = line.split('|');
@@ -79,15 +79,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (parts[1]) {
                         const type = parts[1].trim();
                         datesData[dateStr] = type;
-                        categories.add(type);
+                        
+                        const lowerType = type.toLowerCase();
+                        if (!categoriesMap.has(lowerType)) {
+                            categoriesMap.set(lowerType, type);
+                        }
                     }
                 }
             });
 
-            // Asignar colores a categorías detectadas
+            // Asignar colores a categorías detectadas respetando el nombre original
             let colorIdx = 0;
-            categories.forEach(cat => {
-                categoryColors[cat.toLowerCase()] = colorPalette[colorIdx % colorPalette.length];
+            categoriesMap.forEach((originalName, lowerType) => {
+                categoryColors[lowerType] = {
+                    colors: colorPalette[colorIdx % colorPalette.length],
+                    displayName: originalName
+                };
                 colorIdx++;
             });
 
@@ -105,11 +112,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         legendContainer.innerHTML = ''; // Limpiar
         
-        Object.entries(categoryColors).forEach(([name, colors]) => {
+        Object.values(categoryColors).forEach(({displayName, colors}) => {
             const item = document.createElement('div');
             item.className = 'legend-item';
-            
-            const displayName = name.charAt(0).toUpperCase() + name.slice(1);
             
             item.innerHTML = `
                 <span class="dot" style="background-color: ${colors.bg}; border: 1px solid ${colors.border}"></span>
@@ -122,16 +127,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Inicializar todo el sistema de calendarios de forma asíncrona
     async function initCalendars() {
         const allowedDates = await loadAllowedDates();
+        const container = document.getElementById('dynamicCalendarsContainer');
 
-        if (typeof flatpickr !== 'undefined' && allowedDates.length > 0) {
+        if (typeof flatpickr !== 'undefined' && allowedDates.length > 0 && container) {
             generateLegend();
+            container.innerHTML = ''; // Limpiar contenedor
+            fpInstances = [];
 
+            // 1. Identificar meses/años únicos
+            const monthYears = new Set();
+            allowedDates.forEach(dateStr => {
+                const [d, m, y] = dateStr.split('/');
+                monthYears.add(`${y}-${m}`);
+            });
+
+            // 2. Ordenar cronológicamente
+            const sortedMonths = Array.from(monthYears).sort();
+
+            // 3. Crear función de actualización compartida
             const updateFn = function() {
                 const allSelected = [];
-                if(fpMarch) allSelected.push(...fpMarch.selectedDates);
-                if(fpApril) allSelected.push(...fpApril.selectedDates);
-                if(fpMay) allSelected.push(...fpMay.selectedDates);
-                if(fpJune) allSelected.push(...fpJune.selectedDates);
+                fpInstances.forEach(fp => allSelected.push(...fp.selectedDates));
                 
                 allSelected.sort((a,b) => a - b);
                 const formatted = allSelected.map(d => flatpickr.formatDate(d, "d/m/Y"));
@@ -150,28 +166,35 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const dateString = flatpickr.formatDate(dayElem.dateObj, "d/m/Y");
                     const type = datesData[dateString];
                     if (type) {
-                        const colors = categoryColors[type.toLowerCase()];
-                        if (colors) {
-                            dayElem.style.backgroundColor = colors.bg;
-                            dayElem.style.borderColor = colors.border;
-                            dayElem.style.color = colors.text;
+                        const category = categoryColors[type.toLowerCase()];
+                        if (category && category.colors) {
+                            const c = category.colors;
+                            dayElem.style.backgroundColor = c.bg;
+                            dayElem.style.borderColor = c.border;
+                            dayElem.style.color = c.text;
                         }
                     }
                 }
             };
 
-            fpMarch = flatpickr("#cal-march", Object.assign({}, configBase, { 
-                minDate: new Date(2026, 2, 1), maxDate: new Date(2026, 2, 31) 
-            }));
-            fpApril = flatpickr("#cal-april", Object.assign({}, configBase, { 
-                minDate: new Date(2026, 3, 1), maxDate: new Date(2026, 3, 30) 
-            }));
-            fpMay   = flatpickr("#cal-may",   Object.assign({}, configBase, { 
-                minDate: new Date(2026, 4, 1), maxDate: new Date(2026, 4, 31) 
-            }));
-            fpJune  = flatpickr("#cal-june",  Object.assign({}, configBase, { 
-                minDate: new Date(2026, 5, 1), maxDate: new Date(2026, 5, 30) 
-            }));
+            // 4. Crear e inicializar cada mes
+            sortedMonths.forEach(my => {
+                const [year, month] = my.split('-');
+                const monthNum = parseInt(month) - 1;
+                const yearNum = parseInt(year);
+
+                const calDiv = document.createElement('div');
+                calDiv.className = 'cal-instance-wrapper';
+                const calId = `cal-${my}`;
+                calDiv.innerHTML = `<input type="text" id="${calId}" class="cal-inline" style="display:none;">`;
+                container.appendChild(calDiv);
+
+                const fp = flatpickr(`#${calId}`, Object.assign({}, configBase, {
+                    minDate: new Date(yearNum, monthNum, 1),
+                    maxDate: new Date(yearNum, monthNum, 31) // flatpickr lo ajusta solo al fin de mes
+                }));
+                fpInstances.push(fp);
+            });
         }
     }
 
@@ -183,11 +206,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (e.target.checked) {
             restOfForm.classList.remove('hidden');
             conditionalRequiredInputs.forEach(input => input.required = true);
-            
-            if (fpMarch) fpMarch.redraw();
-            if (fpApril) fpApril.redraw();
-            if (fpMay) fpMay.redraw();
-            if (fpJune) fpJune.redraw();
+            fpInstances.forEach(fp => fp.redraw());
         } else {
             restOfForm.classList.add('hidden');
             conditionalRequiredInputs.forEach(input => input.required = false);
@@ -200,17 +219,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (e.target.value === 'Asistencia a la mayoría, salvo fechas') {
                 absenceDatesGroup.classList.remove('hidden');
                 setTimeout(() => {
-                    if (fpMarch) fpMarch.redraw();
-                    if (fpApril) fpApril.redraw();
-                    if (fpMay) fpMay.redraw();
-                    if (fpJune) fpJune.redraw();
+                    fpInstances.forEach(fp => fp.redraw());
                 }, 10);
             } else {
                 absenceDatesGroup.classList.add('hidden');
-                if (fpMarch) fpMarch.clear();
-                if (fpApril) fpApril.clear();
-                if (fpMay) fpMay.clear();
-                if (fpJune) fpJune.clear();
+                fpInstances.forEach(fp => fp.clear());
                 document.getElementById('absenceDates').value = '';
             }
         });

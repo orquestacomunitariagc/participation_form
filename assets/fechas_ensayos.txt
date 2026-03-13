@@ -1,19 +1,13 @@
-21/03/2026|Ensayo
-22/03/2026|Ensayo
-28/03/2026|Ensayo
-29/03/2026|Ensayo
-04/04/2026|Ensayo
-11/04/2026|Ensayo
-12/04/2026|Ensayo
-18/04/2026|Ensayo
-19/04/2026|Ensayo doble
-25/04/2026|Ensayo
-26/04/2026|Ensayo
-03/05/2026|Ensayo
-10/05/2026|Ensayo
-17/05/2026|Ensayo
-24/05/2026|Ensayo
-31/05/2026|Ensayo
-07/06/2026|Ensayo parcial
-14/06/2026|Concierto GC
-20/06/2026|Concierto FUE
+28/03/2026|Tutti
+11/04/2026|Tutti
+18/04/2026|Tutti
+25/04/2026|Tutti
+02/05/2026|Tutti
+09/05/2026|Tutti sesión doble
+16/05/2026|Tutti
+23/05/2026|Tutti con coro
+31/05/2026|Tutti con coro
+06/06/2026|Tutti con coro
+13/06/2026|Tutti con coro
+14/06/2026|General y Concierto Gran Canaria
+20/06/2026|General y Concierto Fuerteventura
