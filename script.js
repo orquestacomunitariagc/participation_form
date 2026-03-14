@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 2. Cargar el PDF si no está cargado
             if (pdfViewer && (!pdfViewer.innerHTML.trim() || !pdfViewer.querySelector('canvas'))) {
-                pdfViewer.innerHTML = '<div style="color:white; text-align:center; padding:50px; font-weight:600; font-family: inherit;">Cargando documento profesional...</div>';
+                pdfViewer.innerHTML = '<div style="color:white; text-align:center; padding:50px; font-weight:600; font-family: inherit;">Cargando documento...</div>';
                 
                 const pdfjsLib = window.pdfjsLib || window['pdfjs-dist/build/pdf'];
                 if (pdfjsLib) {
