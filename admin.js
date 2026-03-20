@@ -217,19 +217,17 @@ exportExcelBtn.addEventListener('click', async () => {
         return instA.localeCompare(instB);
     });
 
-    // 2. Build the export objects (Individual Sheet)
+    // 2. Build the export objects (Individual Sheet - No Observations here)
     const exportData = sortedData.map(row => {
         const entry = {
             "Nombre": row.fullName || '-',
             "Instrumento": row.instrument || '-',
-            "Conciertos": row.concertAvailability || '-',
-            "Observaciones": row.observations || '-'
+            "Conciertos": row.concertAvailability || '-'
         };
 
         const commitment = row.rehearsalCommitment;
         const absences = (row.absenceDates || "").split(',').map(d => d.trim());
 
-        // Fill dynamic rehearsal columns
         rehearsalDates.forEach(date => {
             if (commitment === "Asistencia regular") {
                 entry[date] = "🟩 SÍ";
@@ -245,56 +243,51 @@ exportExcelBtn.addEventListener('click', async () => {
         return entry;
     });
 
-    // 3. Build Summary Data (EXCLUDING people who cannot attend regularly)
-    // We only count people who are actually in the "available" pool
-    const summaryActiveData = sortedData.filter(row => row.rehearsalCommitment !== "No puedo comprometer asistencia regular");
+    // 3. Build Summary Data (INCLUDING ALL participants)
     const summaryData = [];
-    const instruments = Array.from(new Set(summaryActiveData.map(d => d.instrument || "-"))).sort();
+    const instruments = Array.from(new Set(sortedData.map(d => d.instrument || "-"))).sort();
 
-    // Mapping for total "available" per section
+    // Mapping for total per section
     const sectionTotals = {};
     instruments.forEach(inst => {
-        sectionTotals[inst] = summaryActiveData.filter(d => d.instrument === inst).length;
+        sectionTotals[inst] = sortedData.filter(d => d.instrument === inst).length;
     });
 
     instruments.forEach(inst => {
         const totalInInst = sectionTotals[inst];
         const instRow = { 
             "Instrumento": inst,
-            "Integrantes Disponibles": totalInInst
+            "Plantilla": totalInInst
         };
 
         rehearsalDates.forEach(date => {
             let count = 0;
-            summaryActiveData.filter(d => d.instrument === inst).forEach(row => {
+            sortedData.filter(d => d.instrument === inst).forEach(row => {
                 const commitment = row.rehearsalCommitment;
                 const absences = (row.absenceDates || "").split(',').map(d => d.trim());
                 if (commitment === "Asistencia regular") count++;
                 else if (commitment === "Asistencia a la mayoría, salvo fechas" && !absences.includes(date)) count++;
             });
-            
-            // We store only the NUMBER so Excel can create native charts from this data
             instRow[date] = count;
         });
         summaryData.push(instRow);
     });
 
     // Add a Global Total row to summary
-    const globalTotalActive = summaryActiveData.length;
+    const globalTotal = sortedData.length;
     const totalRow = { 
         "Instrumento": "TOTAL GENERAL",
-        "Integrantes Disponibles": globalTotalActive
+        "Plantilla": globalTotal
     };
     
     rehearsalDates.forEach(date => {
         let count = 0;
-        summaryActiveData.forEach(row => {
+        sortedData.forEach(row => {
             const commitment = row.rehearsalCommitment;
             const absences = (row.absenceDates || "").split(',').map(d => d.trim());
             if (commitment === "Asistencia regular") count++;
             else if (commitment === "Asistencia a la mayoría, salvo fechas" && !absences.includes(date)) count++;
         });
-        
         totalRow[date] = count;
     });
     summaryData.push(totalRow);
@@ -306,22 +299,39 @@ exportExcelBtn.addEventListener('click', async () => {
     const colWidths1 = [
         { wch: 30 }, // Nombre
         { wch: 20 }, // Instrumento
-        { wch: 25 }, // Conciertos
-        { wch: 40 }  // Observaciones
+        { wch: 25 }  // Conciertos
     ];
     rehearsalDates.forEach(() => colWidths1.push({ wch: 10 }));
     ws1['!cols'] = colWidths1;
     XLSX.utils.book_append_sheet(workbook, ws1, "Asistencias Detalladas");
 
-    // Sheet 2: Summary Totals (Clean status for Excel Graphics)
+    // Sheet 2: Summary Totals
     const ws2 = XLSX.utils.json_to_sheet(summaryData);
-    const summaryWidths = [
-        { wch: 20 }, // Instrumento
-        { wch: 20 }  // Integrantes Disponibles
-    ];
+    const summaryWidths = [{ wch: 20 }, { wch: 20 }];
     rehearsalDates.forEach(() => summaryWidths.push({ wch: 12 }));
     ws2['!cols'] = summaryWidths;
     XLSX.utils.book_append_sheet(workbook, ws2, "Resumen Totales");
+
+    // Sheet 3: ONLY people with observations
+    const observationsData = sortedData
+        .filter(row => (row.observations || "").trim().length > 0)
+        .map(row => ({
+            "Nombre": row.fullName || '-',
+            "Instrumento": row.instrument || '-',
+            "Tipo Asistencia": row.rehearsalCommitment || '-',
+            "Observaciones": row.observations
+        }));
+    
+    if (observationsData.length > 0) {
+        const ws3 = XLSX.utils.json_to_sheet(observationsData);
+        ws3['!cols'] = [
+            { wch: 30 }, // Nombre
+            { wch: 20 }, // Instrumento
+            { wch: 30 }, // Tipo Asistencia
+            { wch: 80 }  // Observaciones
+        ];
+        XLSX.utils.book_append_sheet(workbook, ws3, "Observaciones Especiales");
+    }
 
     XLSX.writeFile(workbook, "respuestas_aniversario_ocgc.xlsx");
 });
