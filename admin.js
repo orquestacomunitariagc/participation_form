@@ -217,12 +217,13 @@ exportExcelBtn.addEventListener('click', async () => {
         return instA.localeCompare(instB);
     });
 
-    // 2. Build the export objects
+    // 2. Build the export objects (Individual Sheet)
     const exportData = sortedData.map(row => {
         const entry = {
             "Nombre": row.fullName || '-',
             "Instrumento": row.instrument || '-',
-            "Conciertos": row.concertAvailability || '-'
+            "Conciertos": row.concertAvailability || '-',
+            "Observaciones": row.observations || '-'
         };
 
         const commitment = row.rehearsalCommitment;
@@ -231,12 +232,11 @@ exportExcelBtn.addEventListener('click', async () => {
         // Fill dynamic rehearsal columns
         rehearsalDates.forEach(date => {
             if (commitment === "Asistencia regular") {
-                entry[date] = "SÍ";
+                entry[date] = "🟩 SÍ";
             } else if (commitment === "No puedo comprometer asistencia regular") {
-                entry[date] = "NO";
+                entry[date] = "🟥 NO";
             } else if (commitment === "Asistencia a la mayoría, salvo fechas") {
-                // If the specific date is in the absences list, mark as NO, otherwise SÍ
-                entry[date] = absences.includes(date) ? "NO" : "SÍ";
+                entry[date] = absences.includes(date) ? "🟥 NO" : "🟩 SÍ";
             } else {
                 entry[date] = "-";
             }
@@ -245,12 +245,23 @@ exportExcelBtn.addEventListener('click', async () => {
         return entry;
     });
 
-    // 3. Build Summary Data (Counts by Instrument and Date)
+    // 3. Build Summary Data (Counts and "Visual Graphics" by Section)
     const summaryData = [];
     const instruments = Array.from(new Set(sortedData.map(d => d.instrument || "-"))).sort();
 
+    // Mapping for total per section
+    const sectionTotals = {};
     instruments.forEach(inst => {
-        const instRow = { "Instrumento": inst };
+        sectionTotals[inst] = sortedData.filter(d => d.instrument === inst).length;
+    });
+
+    instruments.forEach(inst => {
+        const totalInInst = sectionTotals[inst];
+        const instRow = { 
+            "Instrumento": inst,
+            "Total": totalInInst
+        };
+
         rehearsalDates.forEach(date => {
             let count = 0;
             sortedData.filter(d => d.instrument === inst).forEach(row => {
@@ -259,13 +270,26 @@ exportExcelBtn.addEventListener('click', async () => {
                 if (commitment === "Asistencia regular") count++;
                 else if (commitment === "Asistencia a la mayoría, salvo fechas" && !absences.includes(date)) count++;
             });
-            instRow[date] = count;
+            
+            // Generate visual "graphic" bar using unicode characters
+            const percentage = totalInInst > 0 ? (count / totalInInst) : 0;
+            const barLength = 10;
+            const filled = Math.round(percentage * barLength);
+            const bar = "█".repeat(filled) + "░".repeat(barLength - filled);
+            
+            // Format: "Count/Total [Bar] %"
+            instRow[date] = `${count}/${totalInInst} ${bar} ${Math.round(percentage * 100)}%`;
         });
         summaryData.push(instRow);
     });
 
     // Add a Global Total row to summary
-    const totalRow = { "Instrumento": "TOTAL GENERAL" };
+    const globalTotalCount = sortedData.length;
+    const totalRow = { 
+        "Instrumento": "TOTAL GENERAL",
+        "Total": globalTotalCount
+    };
+    
     rehearsalDates.forEach(date => {
         let count = 0;
         sortedData.forEach(row => {
@@ -274,29 +298,38 @@ exportExcelBtn.addEventListener('click', async () => {
             if (commitment === "Asistencia regular") count++;
             else if (commitment === "Asistencia a la mayoría, salvo fechas" && !absences.includes(date)) count++;
         });
-        totalRow[date] = count;
+        
+        const percentage = globalTotalCount > 0 ? (count / globalTotalCount) : 0;
+        const barLength = 10;
+        const filled = Math.round(percentage * barLength);
+        const bar = "█".repeat(filled) + "░".repeat(barLength - filled);
+        
+        totalRow[date] = `${count}/${globalTotalCount} ${bar} ${Math.round(percentage * 100)}%`;
     });
     summaryData.push(totalRow);
-
-    // 4. Define widths for main sheet
-    const colWidths = [
-        { wch: 30 }, // Nombre
-        { wch: 20 }, // Instrumento
-        { wch: 35 }  // Conciertos
-    ];
-    rehearsalDates.forEach(() => colWidths.push({ wch: 12 }));
 
     const workbook = XLSX.utils.book_new();
     
     // Sheet 1: Individual Attendance
     const ws1 = XLSX.utils.json_to_sheet(exportData);
-    ws1['!cols'] = colWidths;
+    const colWidths1 = [
+        { wch: 30 }, // Nombre
+        { wch: 20 }, // Instrumento
+        { wch: 25 }, // Conciertos
+        { wch: 40 }  // Observaciones
+    ];
+    rehearsalDates.forEach(() => colWidths1.push({ wch: 10 }));
+    ws1['!cols'] = colWidths1;
     XLSX.utils.book_append_sheet(workbook, ws1, "Asistencias Detalladas");
 
-    // Sheet 2: Summary Totals
+    // Sheet 2: Summary Totals with graphics
     const ws2 = XLSX.utils.json_to_sheet(summaryData);
-    const summaryWidths = [{ wch: 20 }];
-    rehearsalDates.forEach(() => summaryWidths.push({ wch: 12 }));
+    const summaryWidths = [
+        { wch: 20 }, // Instrumento
+        { wch: 8 }   // Total
+    ];
+    // Rehearsal columns need more width for the "graphic"
+    rehearsalDates.forEach(() => summaryWidths.push({ wch: 25 }));
     ws2['!cols'] = summaryWidths;
     XLSX.utils.book_append_sheet(workbook, ws2, "Resumen Totales");
 
