@@ -230,11 +230,13 @@ exportExcelBtn.addEventListener('click', async () => {
 
         rehearsalDates.forEach(date => {
             if (commitment === "Asistencia regular") {
-                entry[date] = "🟩 SÍ";
+                entry[date] = "🟩";
             } else if (commitment === "No puedo comprometer asistencia regular") {
-                entry[date] = "🟥 NO";
+                // Orange for those who cannot commit regularly
+                entry[date] = "🟧";
             } else if (commitment === "Asistencia a la mayoría, salvo fechas") {
-                entry[date] = absences.includes(date) ? "🟥 NO" : "🟩 SÍ";
+                // Red for specific absences of committed personnel, Green for presence
+                entry[date] = absences.includes(date) ? "🟥" : "🟩";
             } else {
                 entry[date] = "-";
             }
