@@ -245,66 +245,57 @@ exportExcelBtn.addEventListener('click', async () => {
         return entry;
     });
 
-    // 3. Build Summary Data (Counts and "Visual Graphics" by Section)
+    // 3. Build Summary Data (EXCLUDING people who cannot attend regularly)
+    // We only count people who are actually in the "available" pool
+    const summaryActiveData = sortedData.filter(row => row.rehearsalCommitment !== "No puedo comprometer asistencia regular");
     const summaryData = [];
-    const instruments = Array.from(new Set(sortedData.map(d => d.instrument || "-"))).sort();
+    const instruments = Array.from(new Set(summaryActiveData.map(d => d.instrument || "-"))).sort();
 
-    // Mapping for total per section
+    // Mapping for total "available" per section
     const sectionTotals = {};
     instruments.forEach(inst => {
-        sectionTotals[inst] = sortedData.filter(d => d.instrument === inst).length;
+        sectionTotals[inst] = summaryActiveData.filter(d => d.instrument === inst).length;
     });
 
     instruments.forEach(inst => {
         const totalInInst = sectionTotals[inst];
         const instRow = { 
             "Instrumento": inst,
-            "Total": totalInInst
+            "Integrantes Disponibles": totalInInst
         };
 
         rehearsalDates.forEach(date => {
             let count = 0;
-            sortedData.filter(d => d.instrument === inst).forEach(row => {
+            summaryActiveData.filter(d => d.instrument === inst).forEach(row => {
                 const commitment = row.rehearsalCommitment;
                 const absences = (row.absenceDates || "").split(',').map(d => d.trim());
                 if (commitment === "Asistencia regular") count++;
                 else if (commitment === "Asistencia a la mayoría, salvo fechas" && !absences.includes(date)) count++;
             });
             
-            // Generate visual "graphic" bar using unicode characters
-            const percentage = totalInInst > 0 ? (count / totalInInst) : 0;
-            const barLength = 10;
-            const filled = Math.round(percentage * barLength);
-            const bar = "█".repeat(filled) + "░".repeat(barLength - filled);
-            
-            // Format: "Count/Total [Bar] %"
-            instRow[date] = `${count}/${totalInInst} ${bar} ${Math.round(percentage * 100)}%`;
+            // We store only the NUMBER so Excel can create native charts from this data
+            instRow[date] = count;
         });
         summaryData.push(instRow);
     });
 
     // Add a Global Total row to summary
-    const globalTotalCount = sortedData.length;
+    const globalTotalActive = summaryActiveData.length;
     const totalRow = { 
         "Instrumento": "TOTAL GENERAL",
-        "Total": globalTotalCount
+        "Integrantes Disponibles": globalTotalActive
     };
     
     rehearsalDates.forEach(date => {
         let count = 0;
-        sortedData.forEach(row => {
+        summaryActiveData.forEach(row => {
             const commitment = row.rehearsalCommitment;
             const absences = (row.absenceDates || "").split(',').map(d => d.trim());
             if (commitment === "Asistencia regular") count++;
             else if (commitment === "Asistencia a la mayoría, salvo fechas" && !absences.includes(date)) count++;
         });
         
-        const percentage = globalTotalCount > 0 ? (count / globalTotalCount) : 0;
-        const barLength = 10;
-        const filled = Math.round(percentage * barLength);
-        const bar = "█".repeat(filled) + "░".repeat(barLength - filled);
-        
-        totalRow[date] = `${count}/${globalTotalCount} ${bar} ${Math.round(percentage * 100)}%`;
+        totalRow[date] = count;
     });
     summaryData.push(totalRow);
 
@@ -322,14 +313,13 @@ exportExcelBtn.addEventListener('click', async () => {
     ws1['!cols'] = colWidths1;
     XLSX.utils.book_append_sheet(workbook, ws1, "Asistencias Detalladas");
 
-    // Sheet 2: Summary Totals with graphics
+    // Sheet 2: Summary Totals (Clean status for Excel Graphics)
     const ws2 = XLSX.utils.json_to_sheet(summaryData);
     const summaryWidths = [
         { wch: 20 }, // Instrumento
-        { wch: 8 }   // Total
+        { wch: 20 }  // Integrantes Disponibles
     ];
-    // Rehearsal columns need more width for the "graphic"
-    rehearsalDates.forEach(() => summaryWidths.push({ wch: 25 }));
+    rehearsalDates.forEach(() => summaryWidths.push({ wch: 12 }));
     ws2['!cols'] = summaryWidths;
     XLSX.utils.book_append_sheet(workbook, ws2, "Resumen Totales");
 
