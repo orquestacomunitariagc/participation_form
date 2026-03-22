@@ -243,8 +243,6 @@ exportExcelBtn.addEventListener('click', async () => {
 
                 if (isGoing) {
                     entry[date] = "🟩";
-                } else if (commitment === "No puedo comprometer asistencia regular") {
-                    entry[date] = "🟧";
                 } else {
                     entry[date] = "🟥";
                 }
