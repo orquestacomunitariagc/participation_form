@@ -228,17 +228,39 @@ exportExcelBtn.addEventListener('click', async () => {
         const commitment = row.rehearsalCommitment;
         const absences = (row.absenceDates || "").split(',').map(d => d.trim());
 
+        // Fill dynamic rehearsal columns
         rehearsalDates.forEach(date => {
-            if (commitment === "Asistencia regular") {
-                entry[date] = "🟩";
-            } else if (commitment === "No puedo comprometer asistencia regular") {
-                // Orange for those who cannot commit regularly
-                entry[date] = "🟧";
-            } else if (commitment === "Asistencia a la mayoría, salvo fechas") {
-                // Red for specific absences of committed personnel, Green for presence
-                entry[date] = absences.includes(date) ? "🟥" : "🟩";
+            // Check if it's a concert date
+            if (date === "14/06/2026" || date === "20/06/2026") {
+                const availability = row.concertAvailability || "";
+                let isGoing = false;
+                
+                if (date === "14/06/2026") {
+                    isGoing = (availability === "Ambos conciertos" || availability === "Solo 14 junio (Gran Canaria)");
+                } else if (date === "20/06/2026") {
+                    isGoing = (availability === "Ambos conciertos" || availability === "Solo 20 junio (Fuerteventura)");
+                }
+
+                if (isGoing) {
+                    entry[date] = "🟩";
+                } else if (commitment === "No puedo comprometer asistencia regular") {
+                    entry[date] = "🟧";
+                } else {
+                    entry[date] = "🟥";
+                }
             } else {
-                entry[date] = "-";
+                // Rehearsal logic
+                if (commitment === "Asistencia regular") {
+                    entry[date] = "🟩";
+                } else if (commitment === "No puedo comprometer asistencia regular") {
+                    // Orange for those who cannot commit regularly
+                    entry[date] = "🟧";
+                } else if (commitment === "Asistencia a la mayoría, salvo fechas") {
+                    // Red for specific absences of committed personnel, Green for presence
+                    entry[date] = absences.includes(date) ? "🟥" : "🟩";
+                } else {
+                    entry[date] = "-";
+                }
             }
         });
 
@@ -265,10 +287,21 @@ exportExcelBtn.addEventListener('click', async () => {
         rehearsalDates.forEach(date => {
             let count = 0;
             sortedData.filter(d => d.instrument === inst).forEach(row => {
-                const commitment = row.rehearsalCommitment;
-                const absences = (row.absenceDates || "").split(',').map(d => d.trim());
-                if (commitment === "Asistencia regular") count++;
-                else if (commitment === "Asistencia a la mayoría, salvo fechas" && !absences.includes(date)) count++;
+                // Check if it's a concert date
+                if (date === "14/06/2026" || date === "20/06/2026") {
+                    const availability = row.concertAvailability || "";
+                    if (date === "14/06/2026") {
+                        if (availability === "Ambos conciertos" || availability === "Solo 14 junio (Gran Canaria)") count++;
+                    } else if (date === "20/06/2026") {
+                        if (availability === "Ambos conciertos" || availability === "Solo 20 junio (Fuerteventura)") count++;
+                    }
+                } else {
+                    // Rehearsal logic
+                    const commitment = row.rehearsalCommitment;
+                    const absences = (row.absenceDates || "").split(',').map(d => d.trim());
+                    if (commitment === "Asistencia regular") count++;
+                    else if (commitment === "Asistencia a la mayoría, salvo fechas" && !absences.includes(date)) count++;
+                }
             });
             instRow[date] = count;
         });
@@ -285,10 +318,21 @@ exportExcelBtn.addEventListener('click', async () => {
     rehearsalDates.forEach(date => {
         let count = 0;
         sortedData.forEach(row => {
-            const commitment = row.rehearsalCommitment;
-            const absences = (row.absenceDates || "").split(',').map(d => d.trim());
-            if (commitment === "Asistencia regular") count++;
-            else if (commitment === "Asistencia a la mayoría, salvo fechas" && !absences.includes(date)) count++;
+            // Check if it's a concert date
+            if (date === "14/06/2026" || date === "20/06/2026") {
+                const availability = row.concertAvailability || "";
+                if (date === "14/06/2026") {
+                    if (availability === "Ambos conciertos" || availability === "Solo 14 junio (Gran Canaria)") count++;
+                } else if (date === "20/06/2026") {
+                    if (availability === "Ambos conciertos" || availability === "Solo 20 junio (Fuerteventura)") count++;
+                }
+            } else {
+                // Rehearsal logic
+                const commitment = row.rehearsalCommitment;
+                const absences = (row.absenceDates || "").split(',').map(d => d.trim());
+                if (commitment === "Asistencia regular") count++;
+                else if (commitment === "Asistencia a la mayoría, salvo fechas" && !absences.includes(date)) count++;
+            }
         });
         totalRow[date] = count;
     });
