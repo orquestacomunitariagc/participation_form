@@ -25,6 +25,7 @@ const filters = {
 };
 
 let allData = [];
+let displayedData = [];
 
 function checkSession() {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -112,6 +113,7 @@ function populateSelect(selectResult, options, defaultText) {
 }
 
 function renderTable(data) {
+    displayedData = data;
     responsesBody.innerHTML = '';
     let count = 0;
 
@@ -174,12 +176,12 @@ clearFiltersBtn.addEventListener('click', () => {
 });
 
 exportBtn.addEventListener('click', () => {
-    if (allData.length === 0) return;
+    if (displayedData.length === 0) return;
 
     const headers = ["Fecha", "Grupo", "Nombre", "Instrumento", "Conciertos", "Ensayos", "Fechas Ausencia", "Observaciones"];
     const csvRows = [headers.join(',')];
 
-    allData.forEach(row => {
+    displayedData.forEach(row => {
         const date = row.created_at ? new Date(row.created_at).toLocaleString().replace(',', '') : 'N/A';
         const values = [
             date,
@@ -220,11 +222,11 @@ async function fetchRehearsalDates() {
 }
 
 exportExcelBtn.addEventListener('click', async () => {
-    if (allData.length === 0) return;
+    if (displayedData.length === 0) return;
 
     const rehearsalDates = await fetchRehearsalDates();
 
-    const sortedData = [...allData].sort((a, b) => {
+    const sortedData = [...displayedData].sort((a, b) => {
         const instA = (a.instrument || "").toLowerCase();
         const instB = (b.instrument || "").toLowerCase();
         return instA.localeCompare(instB);
