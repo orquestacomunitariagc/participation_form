@@ -299,6 +299,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
+    // Show rehearsal section only if user will attend the concert
+    const concertRadios = document.getElementsByName('concertAvailability');
+    const rehearsalSection = document.getElementById('rehearsal-section');
+
+    concertRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            if (e.target.value === 'Participa') {
+                rehearsalSection.classList.remove('hidden');
+            } else {
+                rehearsalSection.classList.add('hidden');
+                absenceDatesGroup.classList.add('hidden');
+                document.getElementById('absenceDates').value = '';
+                Array.from(rehearsalRadios).forEach(r => r.checked = false);
+                fpInstances.forEach(fp => fp.clear());
+            }
+        });
+    });
+
     // Toggle absence dates conditionally
     rehearsalRadios.forEach(radio => {
         radio.addEventListener('change', (e) => {
