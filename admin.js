@@ -1,11 +1,7 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { firebaseConfig } from "./assets/firebase-config.js";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { supabaseConfig } from "./assets/supabase-config.js";
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
 
 // DOM Elements
 const loginSection = document.getElementById('login-section');
@@ -30,17 +26,32 @@ const filters = {
 
 let allData = [];
 
-// Auth State Observer
-onAuthStateChanged(auth, (user) => {
-    if (user) {
+function checkSession() {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+            loginSection.classList.add('hidden');
+            dashboardSection.classList.remove('hidden');
+            loadData();
+        } else {
+            loginSection.classList.remove('hidden');
+            dashboardSection.classList.add('hidden');
+        }
+    });
+}
+
+supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN' && session) {
         loginSection.classList.add('hidden');
         dashboardSection.classList.remove('hidden');
         loadData();
-    } else {
+    } else if (event === 'SIGNED_OUT') {
         loginSection.classList.remove('hidden');
         dashboardSection.classList.add('hidden');
+        allData = [];
     }
 });
+
+checkSession();
 
 // Login Handler
 loginForm.addEventListener('submit', async (e) => {
@@ -48,31 +59,28 @@ loginForm.addEventListener('submit', async (e) => {
     loginError.style.display = 'none';
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
-    try {
-        await signInWithEmailAndPassword(auth, email, password);
-    } catch (error) {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
         loginError.textContent = "Error: Credenciales incorrectas o usuario no encontrado.";
         loginError.style.display = 'block';
     }
 });
 
-logoutBtn.addEventListener('click', () => signOut(auth));
+logoutBtn.addEventListener('click', () => supabase.auth.signOut());
 
 // Load Data
 async function loadData() {
     try {
-        const q = query(collection(db, "respuestas_aniversario_ocgc"), orderBy("timestamp", "desc"));
-        const querySnapshot = await getDocs(q);
+        const { data, error } = await supabase
+            .from("respuestas_asistencia")
+            .select("*")
+            .order("created_at", { ascending: false });
 
-        allData = [];
-        querySnapshot.forEach((doc) => {
-            allData.push(doc.data());
-        });
+        if (error) throw error;
 
-        // Populate dynamic filters from data
+        allData = data || [];
+
         populateDynamicFilters();
-
-        // Render table
         renderTable(allData);
 
     } catch (error) {
@@ -109,7 +117,7 @@ function renderTable(data) {
 
     data.forEach(row => {
         count++;
-        const date = row.timestamp ? new Date(row.timestamp.seconds * 1000).toLocaleString() : 'N/A';
+        const date = row.created_at ? new Date(row.created_at).toLocaleString() : 'N/A';
 
         const grupoLabel = row.grupo === 'coro' ? 'Coro' : row.grupo === 'orquesta' ? 'Orquesta' : '-';
 
@@ -148,7 +156,7 @@ function applyFilters() {
     const filteredData = allData.filter(row => {
         return Object.keys(filtersValues).every(key => {
             const filterVal = filtersValues[key];
-            if (!filterVal) return true; // No filter selected for this key
+            if (!filterVal) return true;
             return row[key] === filterVal;
         });
     });
@@ -156,7 +164,6 @@ function applyFilters() {
     renderTable(filteredData);
 }
 
-// Add listeners to filters
 Object.values(filters).forEach(select => {
     select.addEventListener('change', applyFilters);
 });
@@ -173,7 +180,7 @@ exportBtn.addEventListener('click', () => {
     const csvRows = [headers.join(',')];
 
     allData.forEach(row => {
-        const date = row.timestamp ? new Date(row.timestamp.seconds * 1000).toLocaleString().replace(',', '') : 'N/A';
+        const date = row.created_at ? new Date(row.created_at).toLocaleString().replace(',', '') : 'N/A';
         const values = [
             date,
             `"${row.grupo === 'coro' ? 'Coro' : row.grupo === 'orquesta' ? 'Orquesta' : ''}"`,
@@ -217,14 +224,12 @@ exportExcelBtn.addEventListener('click', async () => {
 
     const rehearsalDates = await fetchRehearsalDates();
 
-    // 1. Sort by instrument alphabetically
     const sortedData = [...allData].sort((a, b) => {
         const instA = (a.instrument || "").toLowerCase();
         const instB = (b.instrument || "").toLowerCase();
         return instA.localeCompare(instB);
     });
 
-    // 2. Build the export objects (Individual Sheet - No Observations here)
     const exportData = sortedData.map(row => {
         const entry = {
             "Grupo": row.grupo === 'coro' ? 'Coro' : row.grupo === 'orquesta' ? 'Orquesta' : '-',
@@ -236,13 +241,11 @@ exportExcelBtn.addEventListener('click', async () => {
         const commitment = row.rehearsalCommitment;
         const absences = (row.absenceDates || "").split(',').map(d => d.trim());
 
-        // Fill dynamic rehearsal columns
         rehearsalDates.forEach(date => {
-            // Check if it's a concert date
             if (date === "14/06/2026" || date === "20/06/2026") {
                 const availability = row.concertAvailability || "";
                 let isGoing = false;
-                
+
                 if (date === "14/06/2026") {
                     isGoing = (availability === "Ambos conciertos" || availability === "Solo 14 junio (Gran Canaria)");
                 } else if (date === "20/06/2026") {
@@ -255,14 +258,11 @@ exportExcelBtn.addEventListener('click', async () => {
                     entry[date] = "🟥";
                 }
             } else {
-                // Rehearsal logic
                 if (commitment === "Asistencia regular") {
                     entry[date] = "🟩";
                 } else if (commitment === "No puedo comprometer asistencia regular") {
-                    // Orange for those who cannot commit regularly
                     entry[date] = "🟧";
                 } else if (commitment === "Asistencia a la mayoría, salvo fechas") {
-                    // Red for specific absences of committed personnel, Green for presence
                     entry[date] = absences.includes(date) ? "🟥" : "🟩";
                 } else {
                     entry[date] = "-";
@@ -273,11 +273,9 @@ exportExcelBtn.addEventListener('click', async () => {
         return entry;
     });
 
-    // 3. Build Summary Data (INCLUDING ALL participants)
     const summaryData = [];
     const instruments = Array.from(new Set(sortedData.map(d => d.instrument || "-"))).sort();
 
-    // Mapping for total per section
     const sectionTotals = {};
     instruments.forEach(inst => {
         sectionTotals[inst] = sortedData.filter(d => d.instrument === inst).length;
@@ -285,7 +283,7 @@ exportExcelBtn.addEventListener('click', async () => {
 
     instruments.forEach(inst => {
         const totalInInst = sectionTotals[inst];
-        const instRow = { 
+        const instRow = {
             "Instrumento": inst,
             "Plantilla": totalInInst
         };
@@ -293,7 +291,6 @@ exportExcelBtn.addEventListener('click', async () => {
         rehearsalDates.forEach(date => {
             let count = 0;
             sortedData.filter(d => d.instrument === inst).forEach(row => {
-                // Check if it's a concert date
                 if (date === "14/06/2026" || date === "20/06/2026") {
                     const availability = row.concertAvailability || "";
                     if (date === "14/06/2026") {
@@ -302,7 +299,6 @@ exportExcelBtn.addEventListener('click', async () => {
                         if (availability === "Ambos conciertos" || availability === "Solo 20 junio (Fuerteventura)") count++;
                     }
                 } else {
-                    // Rehearsal logic
                     const commitment = row.rehearsalCommitment;
                     const absences = (row.absenceDates || "").split(',').map(d => d.trim());
                     if (commitment === "Asistencia regular") count++;
@@ -314,17 +310,15 @@ exportExcelBtn.addEventListener('click', async () => {
         summaryData.push(instRow);
     });
 
-    // Add a Global Total row to summary
     const globalTotal = sortedData.length;
-    const totalRow = { 
+    const totalRow = {
         "Instrumento": "TOTAL GENERAL",
         "Plantilla": globalTotal
     };
-    
+
     rehearsalDates.forEach(date => {
         let count = 0;
         sortedData.forEach(row => {
-            // Check if it's a concert date
             if (date === "14/06/2026" || date === "20/06/2026") {
                 const availability = row.concertAvailability || "";
                 if (date === "14/06/2026") {
@@ -333,7 +327,6 @@ exportExcelBtn.addEventListener('click', async () => {
                     if (availability === "Ambos conciertos" || availability === "Solo 20 junio (Fuerteventura)") count++;
                 }
             } else {
-                // Rehearsal logic
                 const commitment = row.rehearsalCommitment;
                 const absences = (row.absenceDates || "").split(',').map(d => d.trim());
                 if (commitment === "Asistencia regular") count++;
@@ -345,27 +338,24 @@ exportExcelBtn.addEventListener('click', async () => {
     summaryData.push(totalRow);
 
     const workbook = XLSX.utils.book_new();
-    
-    // Sheet 1: Individual Attendance
+
     const ws1 = XLSX.utils.json_to_sheet(exportData);
     const colWidths1 = [
-        { wch: 12 }, // Grupo
-        { wch: 30 }, // Nombre
-        { wch: 20 }, // Instrumento
-        { wch: 25 }  // Conciertos
+        { wch: 12 },
+        { wch: 30 },
+        { wch: 20 },
+        { wch: 25 }
     ];
     rehearsalDates.forEach(() => colWidths1.push({ wch: 10 }));
     ws1['!cols'] = colWidths1;
     XLSX.utils.book_append_sheet(workbook, ws1, "Asistencias Detalladas");
 
-    // Sheet 2: Summary Totals
     const ws2 = XLSX.utils.json_to_sheet(summaryData);
     const summaryWidths = [{ wch: 20 }, { wch: 20 }];
     rehearsalDates.forEach(() => summaryWidths.push({ wch: 12 }));
     ws2['!cols'] = summaryWidths;
     XLSX.utils.book_append_sheet(workbook, ws2, "Resumen Totales");
 
-    // Sheet 3: ONLY people with observations
     const observationsData = sortedData
         .filter(row => (row.observations || "").trim().length > 0)
         .map(row => ({
@@ -375,20 +365,18 @@ exportExcelBtn.addEventListener('click', async () => {
             "Tipo Asistencia": row.rehearsalCommitment || '-',
             "Observaciones": row.observations
         }));
-    
+
     if (observationsData.length > 0) {
         const ws3 = XLSX.utils.json_to_sheet(observationsData);
         ws3['!cols'] = [
-            { wch: 12 }, // Grupo
-            { wch: 30 }, // Nombre
-            { wch: 20 }, // Instrumento
-            { wch: 30 }, // Tipo Asistencia
-            { wch: 80 }  // Observaciones
+            { wch: 12 },
+            { wch: 30 },
+            { wch: 20 },
+            { wch: 30 },
+            { wch: 80 }
         ];
         XLSX.utils.book_append_sheet(workbook, ws3, "Observaciones Especiales");
     }
 
     XLSX.writeFile(workbook, "respuestas_aniversario_ocgc.xlsx");
 });
-
-

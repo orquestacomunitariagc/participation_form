@@ -1,9 +1,7 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { firebaseConfig } from "./assets/firebase-config.js";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { supabaseConfig } from "./assets/supabase-config.js";
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
 
 document.addEventListener('DOMContentLoaded', async () => {
     const form = document.getElementById('responseForm');
@@ -34,7 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function updateInstrumentOptions(group) {
         const select = document.getElementById('instrument');
         const currentValue = select.value;
-        select.innerHTML = '<option value="" disabled selected>Seleccione su instrumento</option>';
+        select.innerHTML = '<option value="" disabled selected>Seleccione su instrumento/voz</option>';
         (instrumentOptions[group] || []).forEach(opt => {
             select.innerHTML += `<option value="${opt}">${opt}</option>`;
         });
@@ -345,8 +343,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             
             data.grupo = selectedGroup;
-            data.timestamp = serverTimestamp();
-            await addDoc(collection(db, "respuestas_aniversario_ocgc"), data);
+            const { error } = await supabase.from("respuestas_asistencia").insert(data);
+            if (error) throw error;
             window.location.href = 'thank-you.html';
         } catch (error) {
             console.error("Error adding document: ", error);
