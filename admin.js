@@ -22,6 +22,7 @@ const clearFiltersBtn = document.getElementById('clearFiltersBtn');
 
 // Filters
 const filters = {
+    grupo: document.getElementById('filterGrupo'),
     instrument: document.getElementById('filterInstrument'),
     concertAvailability: document.getElementById('filterConcerts'),
     rehearsalCommitment: document.getElementById('filterRehearsals')
@@ -89,6 +90,7 @@ function getUniqueValues(key) {
 }
 
 function populateDynamicFilters() {
+    populateSelect(filters.grupo, getUniqueValues('grupo'), "Grupo (Todos)");
     populateSelect(filters.instrument, getUniqueValues('instrument'), "Instrumento (Todos)");
     populateSelect(filters.concertAvailability, getUniqueValues('concertAvailability'), "Conciertos (Todos)");
     populateSelect(filters.rehearsalCommitment, getUniqueValues('rehearsalCommitment'), "Ensayos (Todos)");
@@ -109,9 +111,12 @@ function renderTable(data) {
         count++;
         const date = row.timestamp ? new Date(row.timestamp.seconds * 1000).toLocaleString() : 'N/A';
 
+        const grupoLabel = row.grupo === 'coro' ? 'Coro' : row.grupo === 'orquesta' ? 'Orquesta' : '-';
+
         const tr = `
             <tr>
                 <td>${date}</td>
+                <td><strong>${grupoLabel}</strong></td>
                 <td><strong>${row.fullName || '-'}</strong></td>
                 <td>${row.instrument || '-'}</td>
                 <td>${row.concertAvailability || '-'}</td>
@@ -134,6 +139,7 @@ function renderTable(data) {
 // Filter Logic
 function applyFilters() {
     const filtersValues = {
+        grupo: filters.grupo.value,
         instrument: filters.instrument.value,
         concertAvailability: filters.concertAvailability.value,
         rehearsalCommitment: filters.rehearsalCommitment.value
@@ -163,13 +169,14 @@ clearFiltersBtn.addEventListener('click', () => {
 exportBtn.addEventListener('click', () => {
     if (allData.length === 0) return;
 
-    const headers = ["Fecha", "Nombre", "Instrumento", "Conciertos", "Ensayos", "Fechas Ausencia", "Observaciones"];
+    const headers = ["Fecha", "Grupo", "Nombre", "Instrumento", "Conciertos", "Ensayos", "Fechas Ausencia", "Observaciones"];
     const csvRows = [headers.join(',')];
 
     allData.forEach(row => {
         const date = row.timestamp ? new Date(row.timestamp.seconds * 1000).toLocaleString().replace(',', '') : 'N/A';
         const values = [
             date,
+            `"${row.grupo === 'coro' ? 'Coro' : row.grupo === 'orquesta' ? 'Orquesta' : ''}"`,
             `"${row.fullName || ''}"`,
             `"${row.instrument || ''}"`,
             `"${row.concertAvailability || ''}"`,
@@ -193,7 +200,7 @@ exportBtn.addEventListener('click', () => {
 // Load Rehearsal Dates for Export
 async function fetchRehearsalDates() {
     try {
-        const response = await fetch('assets/fechas_ensayos.txt');
+        const response = await fetch('assets/fechas_ensayos_orquesta.txt');
         if (!response.ok) return [];
         const text = await response.text();
         return text.split('\n')
@@ -220,6 +227,7 @@ exportExcelBtn.addEventListener('click', async () => {
     // 2. Build the export objects (Individual Sheet - No Observations here)
     const exportData = sortedData.map(row => {
         const entry = {
+            "Grupo": row.grupo === 'coro' ? 'Coro' : row.grupo === 'orquesta' ? 'Orquesta' : '-',
             "Nombre": row.fullName || '-',
             "Instrumento": row.instrument || '-',
             "Conciertos": row.concertAvailability || '-'
@@ -341,6 +349,7 @@ exportExcelBtn.addEventListener('click', async () => {
     // Sheet 1: Individual Attendance
     const ws1 = XLSX.utils.json_to_sheet(exportData);
     const colWidths1 = [
+        { wch: 12 }, // Grupo
         { wch: 30 }, // Nombre
         { wch: 20 }, // Instrumento
         { wch: 25 }  // Conciertos
@@ -360,6 +369,7 @@ exportExcelBtn.addEventListener('click', async () => {
     const observationsData = sortedData
         .filter(row => (row.observations || "").trim().length > 0)
         .map(row => ({
+            "Grupo": row.grupo === 'coro' ? 'Coro' : row.grupo === 'orquesta' ? 'Orquesta' : '-',
             "Nombre": row.fullName || '-',
             "Instrumento": row.instrument || '-',
             "Tipo Asistencia": row.rehearsalCommitment || '-',
@@ -369,6 +379,7 @@ exportExcelBtn.addEventListener('click', async () => {
     if (observationsData.length > 0) {
         const ws3 = XLSX.utils.json_to_sheet(observationsData);
         ws3['!cols'] = [
+            { wch: 12 }, // Grupo
             { wch: 30 }, // Nombre
             { wch: 20 }, // Instrumento
             { wch: 30 }, // Tipo Asistencia

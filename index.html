@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ficha de participación - ANIVER5ARIO OCGC</title>
+    <title>Ficha de participación - Érase una vez... la tele</title>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=5">
     <link rel="icon" type="image/png" href="assets/logo_OCGC_simple.png">
@@ -18,19 +18,27 @@
             <img src="assets/logo_OCGC.png" alt="Logo OCGC" class="header-logo">
             <h2>Ficha de participación
                 <br>
-                Programa ANIVER5ARIO OCGC</h2>
+                Programa Érase una vez... la tele</h2>
             <div class="description" style="text-align: left;">
                 <div class="section-description">
                     <p style="margin-bottom: 15px;">Para poder planificar adecuadamente los ensayos y la plantilla de músicos de este programa, necesitamos conocer con la mayor precisión posible la disponibilidad de cada integrante.</p>
                     <p style="margin-bottom: 15px;">La OCGC se sostiene gracias al compromiso de las personas que la integran. Por ello, esta ficha no pretende limitar la participación, sino ayudarnos a organizar el trabajo de la forma más realista posible para que el proceso musical funcione bien para todos.</p>
                     <p style="margin-bottom: 15px;">Te pedimos que, tras leer detenidamente la planificación del programa, completes la información con sinceridad. Esto nos permitirá planificar mejor los ensayos y tomar decisiones adecuadas sobre la plantilla del programa.</p>
                     
-                    <p style="margin-bottom: 15px;">
-                        <!--
-                        <a href="assets/planificacion_aniversario.pdf" id="downloadPlan" download="Planificacion_ANIVER5ARIO_OCGC.pdf" target="_blank" style="color: var(--primary-color); font-weight: 600; text-decoration: underline;">
-                            Planificación del programa
-                        </a>
-                        -->
+                    <div class="form-group" id="group-selection" style="border-color: var(--primary-color); background: #fefcf6;">
+                        <label><strong>Selecciona tu agrupación:</strong> <span class="required-asterisk">*</span></label>
+                        <div class="radio-group" style="flex-direction: column;">
+                            <label class="radio-option">
+                                <input type="radio" name="grupo" value="orquesta" class="grupo-radio">
+                                <span><strong>Orquesta</strong></span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="grupo" value="coro" class="grupo-radio">
+                                <span><strong>Coro</strong></span>
+                            </label>
+                        </div>
+                    </div>
+                    <p style="margin-bottom: 15px;" id="planification-btn-container" class="hidden">
                         <button type="button" id="downloadPlan" class="btn-link">
                             Planificación del programa
                         </button>
@@ -59,50 +67,28 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="instrument"><strong>Instrumento:</strong> <span class="required-asterisk">*</span></label>
+                        <label for="instrument"><strong>Instrumento/voz:</strong> <span class="required-asterisk">*</span></label>
                         <select id="instrument" name="instrument" class="conditional-required">
-                            <option value="" disabled selected>Seleccione su instrumento</option>
-                            <option value="Arpa">Arpa</option>
-                            <option value="Clarinete">Clarinete</option>
-                            <option value="Contrabajo">Contrabajo</option>
-                            <option value="Fagot">Fagot</option>
-                            <option value="Flauta">Flauta</option>
-                            <option value="Oboe">Oboe</option>
-                            <option value="Órgano">Órgano</option>
-                            <option value="Percusión">Percusión</option>
-                            <option value="Piano">Piano</option>
-                            <option value="Trombón">Trombón</option>
-                            <option value="Trompa">Trompa</option>
-                            <option value="Trompeta">Trompeta</option>
-                            <option value="Tuba">Tuba</option>
-                            <option value="Viola">Viola</option>
-                            <option value="Violín primero">Violín primero</option>
-                            <option value="Violín segundo">Violín segundo</option>
-                            <option value="Violonchelo">Violonchelo</option>
-                            <option value="Otro">Otro</option>
+                            <option value="" disabled selected>Seleccione su instrumento/voz</option>
                         </select>
                     </div>
                 </section>
 
                 <!-- Participación en los conciertos -->
                 <section class="form-section">
-                    <h4>Participación en los conciertos de ANIVER5ARIO</h4>
-                    <p style="margin-bottom: 15px; color: #555;"><i>14 de junio, Gran Canaria - 20 junio, Fuerteventura</i></p>
+                    <h4>Participación en el concierto Érase una vez... la tele</h4>
+                    <p style="margin-bottom: 15px; color: #555;"><i>15 de noviembre</i></p>
                     
                     <div class="form-group">
                         <label><strong>Selecciona tu disponibilidad:</strong> <span class="required-asterisk">*</span></label>
                         <div class="radio-group" style="flex-direction: column;">
                             <label class="radio-option">
-                                <input type="radio" name="concertAvailability" value="Ambos conciertos" class="conditional-required">
-                                <span>Puedo participar en <strong>ambos conciertos</strong></span>
+                                <input type="radio" name="concertAvailability" value="Participa" class="conditional-required">
+                                <span><strong>Puedo</strong> participar en el concierto</span>
                             </label>
                             <label class="radio-option">
-                                <input type="radio" name="concertAvailability" value="Solo 14 junio (Gran Canaria)">
-                                <span>Puedo participar <strong>solo en el concierto del 14</strong> de junio (Gran Canaria)</span>
-                            </label>
-                            <label class="radio-option">
-                                <input type="radio" name="concertAvailability" value="Solo 20 junio (Fuerteventura)">
-                                <span>Puedo participar <strong>solo en el concierto del 20</strong> de junio (Fuerteventura)</span>
+                                <input type="radio" name="concertAvailability" value="No participa">
+                                <span><strong>No puedo</strong> participar en el concierto</span>
                             </label>
                         </div>
                     </div>
@@ -168,7 +154,7 @@
             <div class="modal-header-bar">
                 <span>Planificación del Programa</span>
                 <div class="modal-actions">
-                    <a href="assets/planificacion_aniversario.pdf" download="Planificacion_ANIVER5ARIO_OCGC.pdf" class="btn-download-modal" title="Descargar PDF">
+                    <a href="assets/planificacion_orquesta.pdf" download="Planificacion_ANIVER5ARIO_OCGC.pdf" class="btn-download-modal" id="modalDownloadLink" title="Descargar PDF">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
                         <span>Descargar</span>
                     </a>

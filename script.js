@@ -18,15 +18,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pdfModal = document.getElementById('pdfModal');
     const closeModal = document.querySelector('.close-modal');
 
-    let fpInstances = []; // Array para guardar todas las instancias dinámicas
+    let fpInstances = [];
+    let selectedGroup = '';
+    let calendarsInitialized = false;
+
+    const instrumentOptions = {
+        orquesta: [
+            'Arpa', 'Clarinete', 'Contrabajo', 'Fagot', 'Flauta', 'Oboe',
+            'Órgano', 'Percusión', 'Piano', 'Trombón', 'Trompa', 'Trompeta',
+            'Tuba', 'Viola', 'Violín primero', 'Violín segundo', 'Violonchelo', 'Otro'
+        ],
+        coro: ['Soprano', 'Alto', 'Tenor', 'Bajo', 'Otro']
+    };
+
+    function updateInstrumentOptions(group) {
+        const select = document.getElementById('instrument');
+        const currentValue = select.value;
+        select.innerHTML = '<option value="" disabled selected>Seleccione su instrumento</option>';
+        (instrumentOptions[group] || []).forEach(opt => {
+            select.innerHTML += `<option value="${opt}">${opt}</option>`;
+        });
+        if (currentValue && instrumentOptions[group].includes(currentValue)) {
+            select.value = currentValue;
+        }
+    }
 
     // Manejar apertura del modal del PDF
     if (downloadPlan) {
         downloadPlan.addEventListener('click', () => {
             const pdfViewer = document.getElementById('pdfViewer');
-            const pdfPath = 'assets/planificacion_aniversario.pdf';
-            
-            // 1. Mostrar el modal PRIMERO para que tenga dimensiones reales
+            const pdfPath = selectedGroup === 'coro'
+                ? 'assets/planificacion_coro.pdf'
+                : 'assets/planificacion_orquesta.pdf';
+
+            const modalDownloadLink = document.getElementById('modalDownloadLink');
+            if (modalDownloadLink) {
+                modalDownloadLink.href = pdfPath;
+            }
+
             if (pdfModal) {
                 pdfModal.classList.remove('hidden');
                 document.body.style.overflow = 'hidden';
@@ -35,30 +64,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                 confirmationSection.classList.remove('hidden');
             }
 
-            // 2. Cargar el PDF si no está cargado
-            if (pdfViewer && (!pdfViewer.innerHTML.trim() || !pdfViewer.querySelector('canvas'))) {
+            if (pdfViewer) {
                 pdfViewer.innerHTML = '<div style="color:white; text-align:center; padding:50px; font-weight:600; font-family: inherit;">Cargando documento...</div>';
-                
+
                 const pdfjsLib = window.pdfjsLib || window['pdfjs-dist/build/pdf'];
                 if (pdfjsLib) {
                     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-                    
+
                     pdfjsLib.getDocument(pdfPath).promise.then(function(pdfDoc) {
-                        pdfViewer.innerHTML = ''; 
-                        
+                        pdfViewer.innerHTML = '';
+
                         for(let num = 1; num <= pdfDoc.numPages; num++) {
                             const canvas = document.createElement('canvas');
                             pdfViewer.appendChild(canvas);
-                            
+
                             pdfDoc.getPage(num).then(function(page) {
                                 const ctx = canvas.getContext('2d');
-                                // Escala fija de alta definición (2.0) para que sea nítido en todo dispositivo
-                                // El CSS se encargará de ajustarlo al ancho de la pantalla
-                                const viewport = page.getViewport({scale: 2.0}); 
-                                
+                                const viewport = page.getViewport({scale: 2.0});
+
                                 canvas.height = viewport.height;
                                 canvas.width = viewport.width;
-                                
+
                                 const renderContext = {
                                     canvasContext: ctx,
                                     viewport: viewport
@@ -111,9 +137,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     ];
 
     // Función para cargar fechas desde el archivo externo
-    async function loadAllowedDates() {
+    async function loadAllowedDates(group) {
+        const file = group === 'coro' ? 'assets/fechas_ensayos_coro.txt' : 'assets/fechas_ensayos_orquesta.txt';
         try {
-            const response = await fetch('assets/fechas_ensayos.txt');
+            const response = await fetch(file);
             if (!response.ok) throw new Error('No se pudo cargar el archivo de fechas');
             const text = await response.text();
             
@@ -174,8 +201,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Inicializar todo el sistema de calendarios de forma asíncrona
-    async function initCalendars() {
-        const allowedDates = await loadAllowedDates();
+    async function initCalendars(group) {
+        const allowedDates = await loadAllowedDates(group);
         const container = document.getElementById('dynamicCalendarsContainer');
 
         if (typeof flatpickr !== 'undefined' && allowedDates.length > 0 && container) {
@@ -247,12 +274,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Esperar a que los calendarios se carguen antes de continuar
-    await initCalendars();
-
-    // Toggle form view based on first checkbox
-    readPlanification.addEventListener('change', (e) => {
+    // Toggle form view based on first checkbox (lazy init calendars)
+    readPlanification.addEventListener('change', async (e) => {
         if (e.target.checked) {
+            if (!calendarsInitialized && selectedGroup) {
+                await initCalendars(selectedGroup);
+                calendarsInitialized = true;
+            }
             restOfForm.classList.remove('hidden');
             conditionalRequiredInputs.forEach(input => input.required = true);
             fpInstances.forEach(fp => fp.redraw());
@@ -260,6 +288,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             restOfForm.classList.add('hidden');
             conditionalRequiredInputs.forEach(input => input.required = false);
         }
+    });
+
+    // Group selection handler
+    document.querySelectorAll('.grupo-radio').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            selectedGroup = e.target.value;
+            document.getElementById('planification-btn-container').classList.remove('hidden');
+            updateInstrumentOptions(selectedGroup);
+            calendarsInitialized = false;
+            fpInstances = [];
+        });
     });
 
     // Toggle absence dates conditionally
@@ -305,6 +344,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 data.absenceDates = '-';
             }
             
+            data.grupo = selectedGroup;
             data.timestamp = serverTimestamp();
             await addDoc(collection(db, "respuestas_aniversario_ocgc"), data);
             window.location.href = 'thank-you.html';

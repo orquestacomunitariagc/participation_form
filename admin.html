@@ -132,6 +132,9 @@
             <h3 style="margin-top: 0; margin-bottom: 15px; border-left: none; padding-left: 0; font-size: 1.1rem;">
                 Filtros</h3>
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">
+                <select id="filterGrupo" class="admin-filter" style="width:100%; padding:8px;">
+                    <option value="">Grupo (Todos)</option>
+                </select>
                 <select id="filterInstrument" class="admin-filter" style="width:100%; padding:8px;">
                     <option value="">Instrumento (Todos)</option>
                 </select>
@@ -154,6 +157,7 @@
                 <thead>
                     <tr>
                         <th>Fecha</th>
+                        <th>Grupo</th>
                         <th>Nombre</th>
                         <th>Instrumento</th>
                         <th>Conciertos</th>
