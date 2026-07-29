@@ -352,16 +352,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             const formData = new FormData(form);
-            const data = Object.fromEntries(formData.entries());
+            const raw = Object.fromEntries(formData.entries());
 
-            if (isMostDaysSelected) {
-                data.absenceDates = finalAbsenceDates;
-            } else {
-                data.absenceDates = '-';
-            }
-            
-            data.grupo = selectedGroup;
-            const { error } = await supabase.from("respuestas_asistencia").insert(data);
+            const absenceDates = isMostDaysSelected ? finalAbsenceDates : '-';
+
+            const { error } = await supabase.from("respuestas_asistencia").insert({
+                grupo: selectedGroup,
+                full_name: raw.fullName || '',
+                instrument: raw.instrument || '',
+                concert_availability: raw.concertAvailability || '',
+                rehearsal_commitment: raw.rehearsalCommitment || '',
+                absence_dates: absenceDates,
+                observations: raw.observations || ''
+            });
             if (error) throw error;
             window.location.href = 'thank-you.html';
         } catch (error) {

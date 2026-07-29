@@ -127,11 +127,11 @@ function renderTable(data) {
             <tr>
                 <td>${date}</td>
                 <td><strong>${grupoLabel}</strong></td>
-                <td><strong>${row.fullName || '-'}</strong></td>
+                <td><strong>${row.full_name || '-'}</strong></td>
                 <td>${row.instrument || '-'}</td>
-                <td>${row.concertAvailability || '-'}</td>
-                <td>${row.rehearsalCommitment || '-'}</td>
-                <td>${row.absenceDates || '-'}</td>
+                <td>${row.concert_availability || '-'}</td>
+                <td>${row.rehearsal_commitment || '-'}</td>
+                <td>${row.absence_dates || '-'}</td>
                 <td>${row.observations || '-'}</td>
             </tr>
         `;
@@ -186,11 +186,11 @@ exportBtn.addEventListener('click', () => {
         const values = [
             date,
             `"${row.grupo === 'coro' ? 'Coro' : row.grupo === 'orquesta' ? 'Orquesta' : ''}"`,
-            `"${row.fullName || ''}"`,
+            `"${row.full_name || ''}"`,
             `"${row.instrument || ''}"`,
-            `"${row.concertAvailability || ''}"`,
-            `"${row.rehearsalCommitment || ''}"`,
-            `"${row.absenceDates || ''}"`,
+            `"${row.concert_availability || ''}"`,
+            `"${row.rehearsal_commitment || ''}"`,
+            `"${row.absence_dates || ''}"`,
             `"${row.observations || ''}"`
         ];
         csvRows.push(values.join(','));
@@ -235,17 +235,17 @@ exportExcelBtn.addEventListener('click', async () => {
     const exportData = sortedData.map(row => {
         const entry = {
             "Grupo": row.grupo === 'coro' ? 'Coro' : row.grupo === 'orquesta' ? 'Orquesta' : '-',
-            "Nombre": row.fullName || '-',
+            "Nombre": row.full_name || '-',
             "Instrumento": row.instrument || '-',
-            "Conciertos": row.concertAvailability || '-'
+            "Conciertos": row.concert_availability || '-'
         };
 
-        const commitment = row.rehearsalCommitment;
-        const absences = (row.absenceDates || "").split(',').map(d => d.trim());
+        const commitment = row.rehearsal_commitment;
+        const absences = (row.absence_dates || "").split(',').map(d => d.trim());
 
         rehearsalDates.forEach(date => {
             if (date === "14/06/2026" || date === "20/06/2026") {
-                const availability = row.concertAvailability || "";
+                const availability = row.concert_availability || "";
                 let isGoing = false;
 
                 if (date === "14/06/2026") {
@@ -294,15 +294,15 @@ exportExcelBtn.addEventListener('click', async () => {
             let count = 0;
             sortedData.filter(d => d.instrument === inst).forEach(row => {
                 if (date === "14/06/2026" || date === "20/06/2026") {
-                    const availability = row.concertAvailability || "";
+                    const availability = row.concert_availability || "";
                     if (date === "14/06/2026") {
                         if (availability === "Ambos conciertos" || availability === "Solo 14 junio (Gran Canaria)") count++;
                     } else if (date === "20/06/2026") {
                         if (availability === "Ambos conciertos" || availability === "Solo 20 junio (Fuerteventura)") count++;
                     }
                 } else {
-                    const commitment = row.rehearsalCommitment;
-                    const absences = (row.absenceDates || "").split(',').map(d => d.trim());
+                    const commitment = row.rehearsal_commitment;
+                    const absences = (row.absence_dates || "").split(',').map(d => d.trim());
                     if (commitment === "Asistencia regular") count++;
                     else if (commitment === "Asistencia a la mayoría, salvo fechas" && !absences.includes(date)) count++;
                 }
@@ -322,15 +322,15 @@ exportExcelBtn.addEventListener('click', async () => {
         let count = 0;
         sortedData.forEach(row => {
             if (date === "14/06/2026" || date === "20/06/2026") {
-                const availability = row.concertAvailability || "";
+                const availability = row.concert_availability || "";
                 if (date === "14/06/2026") {
                     if (availability === "Ambos conciertos" || availability === "Solo 14 junio (Gran Canaria)") count++;
                 } else if (date === "20/06/2026") {
                     if (availability === "Ambos conciertos" || availability === "Solo 20 junio (Fuerteventura)") count++;
                 }
             } else {
-                const commitment = row.rehearsalCommitment;
-                const absences = (row.absenceDates || "").split(',').map(d => d.trim());
+                const commitment = row.rehearsal_commitment;
+                const absences = (row.absence_dates || "").split(',').map(d => d.trim());
                 if (commitment === "Asistencia regular") count++;
                 else if (commitment === "Asistencia a la mayoría, salvo fechas" && !absences.includes(date)) count++;
             }
@@ -362,9 +362,9 @@ exportExcelBtn.addEventListener('click', async () => {
         .filter(row => (row.observations || "").trim().length > 0)
         .map(row => ({
             "Grupo": row.grupo === 'coro' ? 'Coro' : row.grupo === 'orquesta' ? 'Orquesta' : '-',
-            "Nombre": row.fullName || '-',
+            "Nombre": row.full_name || '-',
             "Instrumento": row.instrument || '-',
-            "Tipo Asistencia": row.rehearsalCommitment || '-',
+            "Tipo Asistencia": row.rehearsal_commitment || '-',
             "Observaciones": row.observations
         }));
 
