@@ -214,12 +214,29 @@ async function fetchRehearsalDates() {
         if (!response.ok) return [];
         const text = await response.text();
         return text.split('\n')
-            .map(line => line.split('|')[0].trim())
-            .filter(date => date.length > 0);
+            .filter(line => line.trim().length > 0)
+            .map(line => {
+                const parts = line.split('|');
+                return {
+                    date: (parts[0] || '').trim(),
+                    isConcert: ((parts[1] || '').trim().toLowerCase().includes('concierto'))
+                };
+            });
     } catch (error) {
         console.error("Error fetching rehearsal dates:", error);
         return [];
     }
+}
+
+function colLetter(index) {
+    let letters = '';
+    let n = index;
+    while (n > 0) {
+        const rem = (n - 1) % 26;
+        letters = String.fromCharCode(65 + rem) + letters;
+        n = Math.floor((n - 1) / 26);
+    }
+    return letters;
 }
 
 exportExcelBtn.addEventListener('click', async () => {
@@ -233,132 +250,177 @@ exportExcelBtn.addEventListener('click', async () => {
         return instA.localeCompare(instB);
     });
 
-    const exportData = sortedData.map(row => {
-        const entry = {
-            "Grupo": row.grupo === 'coro' ? 'Coro' : row.grupo === 'orquesta' ? 'Orquesta' : '-',
-            "Nombre": row.full_name || '-',
-            "Instrumento": row.instrument || '-',
-            "Conciertos": row.concert_availability || '-'
-        };
+    const instruments = Array.from(new Set(sortedData.map(d => d.instrument || "-"))).sort();
+    const lastDataRow = sortedData.length + 1;
 
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "OCGC";
+    workbook.created = new Date();
+    workbook.calcProperties = { fullCalcOnLoad: true };
+
+    // --- Asistencias Detalladas ---
+    const ws1 = workbook.addWorksheet("Asistencias Detalladas");
+    ws1.addRow(["Grupo", "Nombre", "Instrumento", "Conciertos", ...rehearsalDates.map(d => d.date), "% Asistencia"]);
+
+    const rehearsalCols = [];
+    rehearsalDates.forEach((d, i) => {
+        const col = 5 + i;
+        if (!d.isConcert) rehearsalCols.push(col);
+    });
+
+    sortedData.forEach(row => {
         const commitment = row.rehearsal_commitment;
         const absences = (row.absence_dates || "").split(',').map(d => d.trim());
+        const availability = row.concert_availability || "";
 
-        rehearsalDates.forEach(date => {
-            if (date === "14/06/2026" || date === "20/06/2026") {
-                const availability = row.concert_availability || "";
-                let isGoing = false;
+        const values = [
+            row.grupo === 'coro' ? 'Coro' : row.grupo === 'orquesta' ? 'Orquesta' : '-',
+            row.full_name || '-',
+            row.instrument || '-',
+            availability || '-'
+        ];
 
-                if (date === "14/06/2026") {
-                    isGoing = (availability === "Ambos conciertos" || availability === "Solo 14 junio (Gran Canaria)");
-                } else if (date === "20/06/2026") {
-                    isGoing = (availability === "Ambos conciertos" || availability === "Solo 20 junio (Fuerteventura)");
-                }
-
-                if (isGoing) {
-                    entry[date] = "🟩";
-                } else {
-                    entry[date] = "🟥";
-                }
+        rehearsalDates.forEach(({ date, isConcert }) => {
+            if (isConcert) {
+                values.push(availability === "Participa" ? "🟩" : "🟥");
+            } else if (commitment === "Asistencia regular") {
+                values.push("🟩");
+            } else if (commitment === "No puedo comprometer asistencia regular") {
+                values.push("🟧");
+            } else if (commitment === "Asistencia a la mayoría, salvo fechas") {
+                values.push(absences.includes(date) ? "🟥" : "🟩");
             } else {
-                if (commitment === "Asistencia regular") {
-                    entry[date] = "🟩";
-                } else if (commitment === "No puedo comprometer asistencia regular") {
-                    entry[date] = "🟧";
-                } else if (commitment === "Asistencia a la mayoría, salvo fechas") {
-                    entry[date] = absences.includes(date) ? "🟥" : "🟩";
-                } else {
-                    entry[date] = "-";
-                }
+                values.push("-");
             }
         });
 
-        return entry;
+        const rowObj = ws1.addRow(values);
+
+        if (rehearsalCols.length > 0) {
+            const sumTerms = rehearsalCols.map(c => `IF(${colLetter(c)}${rowObj.number}="🟩",1,0)`).join("+");
+            const pctCell = rowObj.getCell(5 + rehearsalDates.length);
+            pctCell.value = {
+                formula: `IF(${rehearsalCols.length}=0,"",(${sumTerms})/${rehearsalCols.length})`
+            };
+            pctCell.numFmt = '0.00%';
+        }
     });
 
-    const summaryData = [];
-    const instruments = Array.from(new Set(sortedData.map(d => d.instrument || "-"))).sort();
+    ws1.getColumn(1).width = 12;
+    ws1.getColumn(2).width = 30;
+    ws1.getColumn(3).width = 20;
+    ws1.getColumn(4).width = 25;
+    rehearsalDates.forEach((_, i) => ws1.getColumn(5 + i).width = 10);
+    if (rehearsalDates.length > 0) ws1.getColumn(5 + rehearsalDates.length).width = 14;
 
-    const sectionTotals = {};
-    instruments.forEach(inst => {
-        sectionTotals[inst] = sortedData.filter(d => d.instrument === inst).length;
-    });
+    if (rehearsalCols.length > 0) {
+        const pctCol = colLetter(5 + rehearsalDates.length);
+        ws1.addConditionalFormatting({
+            ref: `${pctCol}2:${pctCol}${lastDataRow}`,
+            rules: [{
+                type: 'colorScale',
+                cfvo: [
+                    { type: 'num', value: 0 },
+                    { type: 'num', value: 0.5 },
+                    { type: 'num', value: 1 }
+                ],
+                color: [
+                    { argb: 'FFF8696B' },
+                    { argb: 'FFFFEB84' },
+                    { argb: 'FF63BE7B' }
+                ],
+                priority: 1
+            }]
+        });
+    }
 
-    instruments.forEach(inst => {
-        const totalInInst = sectionTotals[inst];
-        const instRow = {
-            "Instrumento": inst,
-            "Plantilla": totalInInst
+    // --- Resumen Totales (recuentos + porcentajes debajo) ---
+    const ws2 = workbook.addWorksheet("Resumen Totales");
+    const detailRef = "'Asistencias Detalladas'";
+    const totalRowIndex = 2 + instruments.length;
+    const pctHeaderRow = totalRowIndex + 2;
+    const pctStartRow = pctHeaderRow + 1;
+    const pctTotalRow = pctStartRow + instruments.length;
+
+    ws2.addRow(["Instrumento", "Plantilla", ...rehearsalDates.map(d => d.date)]);
+
+    instruments.forEach((inst, idx) => {
+        const r = 2 + idx;
+        ws2.getCell(r, 1).value = inst;
+        ws2.getCell(r, 2).value = {
+            formula: `COUNTIF(${detailRef}!$C$2:$C$${lastDataRow},$A${r})`
         };
-
-        rehearsalDates.forEach(date => {
-            let count = 0;
-            sortedData.filter(d => d.instrument === inst).forEach(row => {
-                if (date === "14/06/2026" || date === "20/06/2026") {
-                    const availability = row.concert_availability || "";
-                    if (date === "14/06/2026") {
-                        if (availability === "Ambos conciertos" || availability === "Solo 14 junio (Gran Canaria)") count++;
-                    } else if (date === "20/06/2026") {
-                        if (availability === "Ambos conciertos" || availability === "Solo 20 junio (Fuerteventura)") count++;
-                    }
-                } else {
-                    const commitment = row.rehearsal_commitment;
-                    const absences = (row.absence_dates || "").split(',').map(d => d.trim());
-                    if (commitment === "Asistencia regular") count++;
-                    else if (commitment === "Asistencia a la mayoría, salvo fechas" && !absences.includes(date)) count++;
-                }
-            });
-            instRow[date] = count;
+        rehearsalDates.forEach((d, di) => {
+            const dateCol = colLetter(5 + di);
+            ws2.getCell(r, 3 + di).value = {
+                formula: `SUMPRODUCT((${detailRef}!$C$2:$C$${lastDataRow}=$A${r})*(${detailRef}!${dateCol}$2:${dateCol}$${lastDataRow}="🟩"))`
+            };
         });
-        summaryData.push(instRow);
     });
 
-    const globalTotal = sortedData.length;
-    const totalRow = {
-        "Instrumento": "TOTAL GENERAL",
-        "Plantilla": globalTotal
+    ws2.getCell(totalRowIndex, 1).value = "TOTAL GENERAL";
+    ws2.getCell(totalRowIndex, 2).value = {
+        formula: `COUNTA(${detailRef}!$C$2:$C$${lastDataRow})`
     };
-
-    rehearsalDates.forEach(date => {
-        let count = 0;
-        sortedData.forEach(row => {
-            if (date === "14/06/2026" || date === "20/06/2026") {
-                const availability = row.concert_availability || "";
-                if (date === "14/06/2026") {
-                    if (availability === "Ambos conciertos" || availability === "Solo 14 junio (Gran Canaria)") count++;
-                } else if (date === "20/06/2026") {
-                    if (availability === "Ambos conciertos" || availability === "Solo 20 junio (Fuerteventura)") count++;
-                }
-            } else {
-                const commitment = row.rehearsal_commitment;
-                const absences = (row.absence_dates || "").split(',').map(d => d.trim());
-                if (commitment === "Asistencia regular") count++;
-                else if (commitment === "Asistencia a la mayoría, salvo fechas" && !absences.includes(date)) count++;
-            }
-        });
-        totalRow[date] = count;
+    rehearsalDates.forEach((d, di) => {
+        const dateCol = colLetter(5 + di);
+        ws2.getCell(totalRowIndex, 3 + di).value = {
+            formula: `SUMPRODUCT(--(${detailRef}!${dateCol}2:${dateCol}${lastDataRow}="🟩"))`
+        };
     });
-    summaryData.push(totalRow);
 
-    const workbook = XLSX.utils.book_new();
+    ws2.addRow([]);
+    ws2.addRow(["Instrumento", "Plantilla", ...rehearsalDates.map(d => d.date)]);
 
-    const ws1 = XLSX.utils.json_to_sheet(exportData);
-    const colWidths1 = [
-        { wch: 12 },
-        { wch: 30 },
-        { wch: 20 },
-        { wch: 25 }
-    ];
-    rehearsalDates.forEach(() => colWidths1.push({ wch: 10 }));
-    ws1['!cols'] = colWidths1;
-    XLSX.utils.book_append_sheet(workbook, ws1, "Asistencias Detalladas");
+    instruments.forEach((inst, idx) => {
+        const r = pctStartRow + idx;
+        const c = 2 + idx;
+        ws2.getCell(r, 1).value = inst;
+        ws2.getCell(r, 2).value = { formula: `=$B$${c}` };
+        rehearsalDates.forEach((d, di) => {
+            const col = 3 + di;
+            ws2.getCell(r, col).value = {
+                formula: `IF($B$${c}=0,"",${colLetter(col)}$${c}/$B$${c})`
+            };
+            ws2.getCell(r, col).numFmt = '0%';
+        });
+    });
 
-    const ws2 = XLSX.utils.json_to_sheet(summaryData);
-    const summaryWidths = [{ wch: 20 }, { wch: 20 }];
-    rehearsalDates.forEach(() => summaryWidths.push({ wch: 12 }));
-    ws2['!cols'] = summaryWidths;
-    XLSX.utils.book_append_sheet(workbook, ws2, "Resumen Totales");
+    ws2.getCell(pctTotalRow, 1).value = "TOTAL GENERAL";
+    ws2.getCell(pctTotalRow, 2).value = { formula: `=$B$${totalRowIndex}` };
+    rehearsalDates.forEach((d, di) => {
+        const col = 3 + di;
+        ws2.getCell(pctTotalRow, col).value = {
+            formula: `IF($B$${totalRowIndex}=0,"",${colLetter(col)}$${totalRowIndex}/$B$${totalRowIndex})`
+        };
+        ws2.getCell(pctTotalRow, col).numFmt = '0%';
+    });
 
+    ws2.getColumn(1).width = 20;
+    ws2.getColumn(2).width = 20;
+    rehearsalDates.forEach((_, i) => ws2.getColumn(3 + i).width = 12);
+
+    if (rehearsalDates.length > 0) {
+        ws2.addConditionalFormatting({
+            ref: `C${pctStartRow}:${colLetter(2 + rehearsalDates.length)}${pctTotalRow}`,
+            rules: [{
+                type: 'colorScale',
+                cfvo: [
+                    { type: 'num', value: 0 },
+                    { type: 'num', value: 0.5 },
+                    { type: 'num', value: 1 }
+                ],
+                color: [
+                    { argb: 'FFF8696B' },
+                    { argb: 'FFFFEB84' },
+                    { argb: 'FF63BE7B' }
+                ],
+                priority: 1
+            }]
+        });
+    }
+
+    // --- Observaciones Especiales ---
     const observationsData = sortedData
         .filter(row => (row.observations || "").trim().length > 0)
         .map(row => ({
@@ -370,16 +432,23 @@ exportExcelBtn.addEventListener('click', async () => {
         }));
 
     if (observationsData.length > 0) {
-        const ws3 = XLSX.utils.json_to_sheet(observationsData);
-        ws3['!cols'] = [
-            { wch: 12 },
-            { wch: 30 },
-            { wch: 20 },
-            { wch: 30 },
-            { wch: 80 }
-        ];
-        XLSX.utils.book_append_sheet(workbook, ws3, "Observaciones Especiales");
+        const ws4 = workbook.addWorksheet("Observaciones Especiales");
+        ws4.addRow(["Grupo", "Nombre", "Instrumento", "Tipo Asistencia", "Observaciones"]);
+        observationsData.forEach(o => ws4.addRow([o.Grupo, o.Nombre, o.Instrumento, o["Tipo Asistencia"], o.Observaciones]));
+        ws4.getColumn(1).width = 12;
+        ws4.getColumn(2).width = 30;
+        ws4.getColumn(3).width = 20;
+        ws4.getColumn(4).width = 30;
+        ws4.getColumn(5).width = 80;
     }
 
-    XLSX.writeFile(workbook, PROGRAM_CONFIG.exportFileName);
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = PROGRAM_CONFIG.exportFileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
 });
