@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { supabaseConfig } from "./assets/supabase-config.js";
+import { PROGRAM_CONFIG } from "./assets/config.js";
 
 const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
 
@@ -380,5 +381,5 @@ exportExcelBtn.addEventListener('click', async () => {
         XLSX.utils.book_append_sheet(workbook, ws3, "Observaciones Especiales");
     }
 
-    XLSX.writeFile(workbook, "respuestas_aniversario_ocgc.xlsx");
+    XLSX.writeFile(workbook, PROGRAM_CONFIG.exportFileName);
 });
