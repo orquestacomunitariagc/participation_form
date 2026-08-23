@@ -453,6 +453,18 @@ function compareByInstrument(a, b) {
     return (a.instrument || "").toLowerCase().localeCompare((b.instrument || "").toLowerCase());
 }
 
+function dedupeLatest(rows) {
+    const byKey = new Map();
+    rows.forEach(row => {
+        const key = `${(row.instrument || "-").trim().toLowerCase()}|${(row.full_name || "").trim().toLowerCase()}`;
+        const prev = byKey.get(key);
+        if (!prev || new Date(row.created_at || 0) > new Date(prev.created_at || 0)) {
+            byKey.set(key, row);
+        }
+    });
+    return Array.from(byKey.values());
+}
+
 async function addGroupSheets(workbook, rows, group, mixed) {
     const rehearsalDates = await fetchRehearsalDates(group);
 
@@ -637,7 +649,7 @@ async function addGroupSheets(workbook, rows, group, mixed) {
 exportExcelBtn.addEventListener('click', async () => {
     if (displayedData.length === 0) return;
 
-    const sortedData = [...displayedData].sort(compareByInstrument);
+    const sortedData = dedupeLatest(displayedData).sort(compareByInstrument);
 
     const workbook = new ExcelJS.Workbook();
     workbook.creator = "OCGC";
