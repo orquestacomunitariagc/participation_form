@@ -17,6 +17,20 @@ const exportBtn = document.getElementById('exportBtn');
 const exportExcelBtn = document.getElementById('exportExcelBtn');
 const clearFiltersBtn = document.getElementById('clearFiltersBtn');
 
+// Views
+const viewButtons = {
+    table: document.getElementById('viewTableBtn'),
+    members: document.getElementById('viewMembersBtn'),
+    sections: document.getElementById('viewSectionsBtn')
+};
+const viewContainers = {
+    table: document.getElementById('view-table'),
+    members: document.getElementById('view-members'),
+    sections: document.getElementById('view-sections')
+};
+let currentView = 'table';
+const datesCache = { orquesta: null, coro: null };
+
 // Filters
 const filters = {
     grupo: document.getElementById('filterGrupo'),
@@ -28,32 +42,65 @@ const filters = {
 let allData = [];
 let displayedData = [];
 
+// Dev-only default credentials (file gitignored: assets/dev-auth.js)
+let devSession = false;
+let devAuthCache = null;
+let devAuthLoaded = false;
+
+async function loadDevAuth() {
+    if (devAuthLoaded) return devAuthCache;
+    devAuthLoaded = true;
+    try {
+        const mod = await import('./assets/dev-auth.js');
+        devAuthCache = mod.default || null;
+    } catch (e) {
+        devAuthCache = null;
+    }
+    return devAuthCache;
+}
+
+function showDashboard() {
+    loginSection.classList.add('hidden');
+    dashboardSection.classList.remove('hidden');
+}
+
+function showLogin() {
+    loginSection.classList.remove('hidden');
+    dashboardSection.classList.add('hidden');
+}
+
+async function showDevHint() {
+    const devAuth = await loadDevAuth();
+    const hint = document.getElementById('devHint');
+    if (hint && devAuth) {
+        hint.textContent = `(Dev) Usuario: ${devAuth.email} · Contraseña: ${devAuth.password}`;
+        hint.style.display = 'block';
+    }
+}
+
 function checkSession() {
     supabase.auth.getSession().then(({ data: { session } }) => {
         if (session) {
-            loginSection.classList.add('hidden');
-            dashboardSection.classList.remove('hidden');
+            showDashboard();
             loadData();
         } else {
-            loginSection.classList.remove('hidden');
-            dashboardSection.classList.add('hidden');
+            showLogin();
         }
     });
 }
 
 supabase.auth.onAuthStateChange((event, session) => {
     if (event === 'SIGNED_IN' && session) {
-        loginSection.classList.add('hidden');
-        dashboardSection.classList.remove('hidden');
+        showDashboard();
         loadData();
     } else if (event === 'SIGNED_OUT') {
-        loginSection.classList.remove('hidden');
-        dashboardSection.classList.add('hidden');
+        showLogin();
         allData = [];
     }
 });
 
 checkSession();
+showDevHint();
 
 // Login Handler
 loginForm.addEventListener('submit', async (e) => {
@@ -61,6 +108,15 @@ loginForm.addEventListener('submit', async (e) => {
     loginError.style.display = 'none';
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
+
+    const devAuth = await loadDevAuth();
+    if (devAuth && email === devAuth.email && password === devAuth.password) {
+        devSession = true;
+        showDashboard();
+        loadData();
+        return;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
         loginError.textContent = "Error: Credenciales incorrectas o usuario no encontrado.";
@@ -68,7 +124,15 @@ loginForm.addEventListener('submit', async (e) => {
     }
 });
 
-logoutBtn.addEventListener('click', () => supabase.auth.signOut());
+logoutBtn.addEventListener('click', () => {
+    if (devSession) {
+        devSession = false;
+        showLogin();
+        allData = [];
+    } else {
+        supabase.auth.signOut();
+    }
+});
 
 // Load Data
 async function loadData() {
@@ -116,6 +180,7 @@ function populateSelect(selectResult, options, defaultText) {
 function renderTable(data) {
     displayedData = data;
     responsesBody.innerHTML = '';
+    refreshActiveView();
     let count = 0;
 
     data.forEach(row => {
@@ -176,6 +241,134 @@ clearFiltersBtn.addEventListener('click', () => {
     applyFilters();
 });
 
+// View Toggle
+function setView(view) {
+    currentView = view;
+    Object.keys(viewButtons).forEach(key => {
+        viewButtons[key].classList.toggle('active', key === view);
+        viewContainers[key].classList.toggle('hidden', key !== view);
+    });
+    refreshActiveView();
+}
+
+function activeGroupKey() {
+    return filters.grupo.value === 'coro' ? 'coro' : 'orquesta';
+}
+
+function refreshActiveView() {
+    if (currentView === 'members') renderMembersView(displayedData);
+    else if (currentView === 'sections') renderSectionsView(displayedData);
+}
+
+Object.keys(viewButtons).forEach(key => {
+    viewButtons[key].addEventListener('click', () => setView(key));
+});
+
+function pctColor(p) {
+    const x = Math.max(0, Math.min(1, p)) * 2;
+    let r, g, b;
+    if (x <= 1) {
+        const k = x;
+        r = Math.round(248 + (255 - 248) * k);
+        g = Math.round(105 + (235 - 105) * k);
+        b = Math.round(107 + (132 - 107) * k);
+    } else {
+        const k = x - 1;
+        r = Math.round(255 + (99 - 255) * k);
+        g = Math.round(235 + (190 - 235) * k);
+        b = Math.round(132 + (123 - 132) * k);
+    }
+    return `rgb(${r},${g},${b})`;
+}
+
+function emptyStateHTML() {
+    return '<p style="padding: 20px; color: #666;">Sin datos para mostrar.</p>';
+}
+
+async function renderMembersView(data) {
+    const container = viewContainers.members;
+    if (data.length === 0) {
+        container.innerHTML = emptyStateHTML();
+        return;
+    }
+    const dates = await fetchRehearsalDates(activeGroupKey());
+    const sorted = [...data].sort((a, b) =>
+        (a.instrument || '').toLowerCase().localeCompare((b.instrument || '').toLowerCase()) ||
+        (a.full_name || '').localeCompare(b.full_name || '')
+    );
+    const rehearsalCols = [];
+    dates.forEach((d, i) => { if (!d.isConcert) rehearsalCols.push(i); });
+
+    let html = `<table><thead><tr><th>Grupo</th><th>Nombre</th><th>Instrumento</th><th>Conciertos</th>`;
+    dates.forEach(d => { html += `<th>${d.date}</th>`; });
+    html += `<th>% Asistencia</th></tr></thead><tbody>`;
+
+    sorted.forEach(row => {
+        const emojis = dates.map(d => statusEmoji(row, d.date, d.isConcert));
+        let greens = 0;
+        rehearsalCols.forEach(i => { if (emojis[i] === "🟩") greens++; });
+        const pct = rehearsalCols.length > 0 ? greens / rehearsalCols.length : null;
+        html += `<tr><td>${row.grupo === 'coro' ? 'Coro' : row.grupo === 'orquesta' ? 'Orquesta' : '-'}</td>`;
+        html += `<td><strong>${row.full_name || '-'}</strong></td>`;
+        html += `<td>${row.instrument || '-'}</td>`;
+        html += `<td>${row.concert_availability || '-'}</td>`;
+        emojis.forEach(e => { html += `<td class="emoji-cell">${e}</td>`; });
+        html += `<td class="pct-cell">${pct === null ? '-' : (pct * 100).toFixed(2) + '%'}</td></tr>`;
+    });
+
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+}
+
+async function renderSectionsView(data) {
+    const container = viewContainers.sections;
+    if (data.length === 0) {
+        container.innerHTML = emptyStateHTML();
+        return;
+    }
+    const dates = await fetchRehearsalDates(activeGroupKey());
+    const instruments = Array.from(new Set(data.map(d => d.instrument || '-'))).sort();
+
+    const counts = instruments.map(inst => {
+        const rows = data.filter(r => (r.instrument || '-') === inst);
+        return {
+            inst,
+            plantilla: rows.length,
+            perDate: dates.map(d => rows.filter(r => statusEmoji(r, d.date, d.isConcert) === "🟩").length)
+        };
+    });
+    const totals = dates.map((_, di) => counts.reduce((s, c) => s + c.perDate[di], 0));
+    const totalPlantilla = counts.reduce((s, c) => s + c.plantilla, 0);
+
+    const header = `<thead><tr><th>Instrumento</th><th>Plantilla</th>${dates.map(d => `<th>${d.date}</th>`).join('')}</tr></thead>`;
+
+    let html = `<h3 class="summary-title">Conteos por sección</h3>`;
+    html += `<table>${header}<tbody>`;
+    counts.forEach(c => {
+        html += `<tr><td>${c.inst}</td><td>${c.plantilla}</td>${c.perDate.map(n => `<td>${n}</td>`).join('')}</tr>`;
+    });
+    html += `<tr class="total-row"><td>TOTAL GENERAL</td><td>${totalPlantilla}</td>${totals.map(n => `<td>${n}</td>`).join('')}</tr></tbody></table>`;
+
+    html += `<h3 class="summary-title">Porcentajes por sección</h3>`;
+    html += `<table>${header}<tbody>`;
+    counts.forEach(c => {
+        html += `<tr><td>${c.inst}</td><td>${c.plantilla}</td>`;
+        c.perDate.forEach(n => {
+            const p = c.plantilla > 0 ? n / c.plantilla : null;
+            html += `<td class="pct-cell" style="background-color:${p === null ? '' : pctColor(p)}">${p === null ? '-' : Math.round(p * 100) + '%'}</td>`;
+        });
+        html += `</tr>`;
+    });
+    html += `<tr class="total-row"><td>TOTAL GENERAL</td><td>${totalPlantilla}</td>`;
+    dates.forEach((_, di) => {
+        const p = totalPlantilla > 0 ? totals[di] / totalPlantilla : null;
+        html += `<td class="pct-cell" style="background-color:${p === null ? '' : pctColor(p)}">${p === null ? '-' : Math.round(p * 100) + '%'}</td>`;
+    });
+    html += `</tr></tbody></table>`;
+
+    container.innerHTML = html;
+}
+
 exportBtn.addEventListener('click', () => {
     if (displayedData.length === 0) return;
 
@@ -207,13 +400,15 @@ exportBtn.addEventListener('click', () => {
     document.body.removeChild(link);
 });
 
-// Load Rehearsal Dates for Export
-async function fetchRehearsalDates() {
+// Load Rehearsal Dates (per group, cached)
+async function fetchRehearsalDates(group = 'orquesta') {
+    const key = group === 'coro' ? 'coro' : 'orquesta';
+    if (datesCache[key]) return datesCache[key];
     try {
-        const response = await fetch('assets/fechas_ensayos_orquesta.txt');
+        const response = await fetch(`assets/fechas_ensayos_${key}.txt`);
         if (!response.ok) return [];
         const text = await response.text();
-        return text.split('\n')
+        datesCache[key] = text.split('\n')
             .filter(line => line.trim().length > 0)
             .map(line => {
                 const parts = line.split('|');
@@ -222,10 +417,25 @@ async function fetchRehearsalDates() {
                     isConcert: ((parts[1] || '').trim().toLowerCase().includes('concierto'))
                 };
             });
+        return datesCache[key];
     } catch (error) {
         console.error("Error fetching rehearsal dates:", error);
         return [];
     }
+}
+
+function statusEmoji(row, date, isConcert) {
+    const commitment = row.rehearsal_commitment;
+    if (isConcert) {
+        return (row.concert_availability || "") === "Participa" ? "🟩" : "🟥";
+    }
+    if (commitment === "Asistencia regular") return "🟩";
+    if (commitment === "No puedo comprometer asistencia regular") return "🟧";
+    if (commitment === "Asistencia a la mayoría, salvo fechas") {
+        const absences = (row.absence_dates || "").split(',').map(d => d.trim());
+        return absences.includes(date) ? "🟥" : "🟩";
+    }
+    return "-";
 }
 
 function colLetter(index) {
@@ -239,27 +449,20 @@ function colLetter(index) {
     return letters;
 }
 
-exportExcelBtn.addEventListener('click', async () => {
-    if (displayedData.length === 0) return;
+function compareByInstrument(a, b) {
+    return (a.instrument || "").toLowerCase().localeCompare((b.instrument || "").toLowerCase());
+}
 
-    const rehearsalDates = await fetchRehearsalDates();
+async function addGroupSheets(workbook, rows, group, mixed) {
+    const rehearsalDates = await fetchRehearsalDates(group);
 
-    const sortedData = [...displayedData].sort((a, b) => {
-        const instA = (a.instrument || "").toLowerCase();
-        const instB = (b.instrument || "").toLowerCase();
-        return instA.localeCompare(instB);
-    });
-
+    const sortedData = [...rows].sort(compareByInstrument);
     const instruments = Array.from(new Set(sortedData.map(d => d.instrument || "-"))).sort();
     const lastDataRow = sortedData.length + 1;
+    const groupLabel = group === 'coro' ? 'Coro' : 'Orquesta';
 
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = "OCGC";
-    workbook.created = new Date();
-    workbook.calcProperties = { fullCalcOnLoad: true };
-
-    // --- Asistencias Detalladas ---
-    const ws1 = workbook.addWorksheet("Asistencias Detalladas");
+    // --- Detalle del grupo ---
+    const ws1 = workbook.addWorksheet(mixed ? `Detalle ${groupLabel}` : "Asistencias Detalladas");
     ws1.addRow(["Grupo", "Nombre", "Instrumento", "Conciertos", ...rehearsalDates.map(d => d.date), "% Asistencia"]);
 
     const rehearsalCols = [];
@@ -269,8 +472,6 @@ exportExcelBtn.addEventListener('click', async () => {
     });
 
     sortedData.forEach(row => {
-        const commitment = row.rehearsal_commitment;
-        const absences = (row.absence_dates || "").split(',').map(d => d.trim());
         const availability = row.concert_availability || "";
 
         const values = [
@@ -281,17 +482,7 @@ exportExcelBtn.addEventListener('click', async () => {
         ];
 
         rehearsalDates.forEach(({ date, isConcert }) => {
-            if (isConcert) {
-                values.push(availability === "Participa" ? "🟩" : "🟥");
-            } else if (commitment === "Asistencia regular") {
-                values.push("🟩");
-            } else if (commitment === "No puedo comprometer asistencia regular") {
-                values.push("🟧");
-            } else if (commitment === "Asistencia a la mayoría, salvo fechas") {
-                values.push(absences.includes(date) ? "🟥" : "🟩");
-            } else {
-                values.push("-");
-            }
+            values.push(statusEmoji(row, date, isConcert));
         });
 
         const rowObj = ws1.addRow(values);
@@ -335,8 +526,8 @@ exportExcelBtn.addEventListener('click', async () => {
     }
 
     // --- Resumen Totales (recuentos + porcentajes debajo) ---
-    const ws2 = workbook.addWorksheet("Resumen Totales");
-    const detailRef = "'Asistencias Detalladas'";
+    const ws2 = workbook.addWorksheet(mixed ? `Resumen ${groupLabel}` : "Resumen Totales");
+    const detailRef = `'${ws1.name}'`;
     const totalRowIndex = 2 + instruments.length;
     const pctHeaderRow = totalRowIndex + 2;
     const pctStartRow = pctHeaderRow + 1;
@@ -432,7 +623,7 @@ exportExcelBtn.addEventListener('click', async () => {
         }));
 
     if (observationsData.length > 0) {
-        const ws4 = workbook.addWorksheet("Observaciones Especiales");
+        const ws4 = workbook.addWorksheet(mixed ? `Observaciones ${groupLabel}` : "Observaciones Especiales");
         ws4.addRow(["Grupo", "Nombre", "Instrumento", "Tipo Asistencia", "Observaciones"]);
         observationsData.forEach(o => ws4.addRow([o.Grupo, o.Nombre, o.Instrumento, o["Tipo Asistencia"], o.Observaciones]));
         ws4.getColumn(1).width = 12;
@@ -441,6 +632,24 @@ exportExcelBtn.addEventListener('click', async () => {
         ws4.getColumn(4).width = 30;
         ws4.getColumn(5).width = 80;
     }
+}
+
+exportExcelBtn.addEventListener('click', async () => {
+    if (displayedData.length === 0) return;
+
+    const sortedData = [...displayedData].sort(compareByInstrument);
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "OCGC";
+    workbook.created = new Date();
+    workbook.calcProperties = { fullCalcOnLoad: true };
+
+    const coroRows = sortedData.filter(row => row.grupo === 'coro');
+    const orquestaRows = sortedData.filter(row => row.grupo !== 'coro');
+    const mixed = coroRows.length > 0 && orquestaRows.length > 0;
+
+    if (orquestaRows.length > 0) await addGroupSheets(workbook, orquestaRows, 'orquesta', mixed);
+    if (coroRows.length > 0) await addGroupSheets(workbook, coroRows, 'coro', mixed);
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
