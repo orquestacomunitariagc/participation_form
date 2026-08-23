@@ -15,6 +15,7 @@ const totalCount = document.getElementById('total-count');
 const filteredCountLabel = document.getElementById('filtered-count-label');
 const exportBtn = document.getElementById('exportBtn');
 const exportExcelBtn = document.getElementById('exportExcelBtn');
+const exportPdfBtn = document.getElementById('exportPdfBtn');
 const clearFiltersBtn = document.getElementById('clearFiltersBtn');
 
 // Views
@@ -264,7 +265,7 @@ Object.keys(viewButtons).forEach(key => {
     viewButtons[key].addEventListener('click', () => setView(key));
 });
 
-function pctColor(p) {
+function pctRgb(p) {
     const x = Math.max(0, Math.min(1, p)) * 2;
     let r, g, b;
     if (x <= 1) {
@@ -278,6 +279,11 @@ function pctColor(p) {
         g = Math.round(235 + (190 - 235) * k);
         b = Math.round(132 + (123 - 132) * k);
     }
+    return [r, g, b];
+}
+
+function pctColor(p) {
+    const [r, g, b] = pctRgb(p);
     return `rgb(${r},${g},${b})`;
 }
 
@@ -473,13 +479,14 @@ async function addGroupSheets(workbook, rows, group, mixed) {
     const lastDataRow = sortedData.length + 1;
     const groupLabel = group === 'coro' ? 'Coro' : 'Orquesta';
 
-    // --- Detalle del grupo ---
+    // Orden de hojas: Resumen -> Detalle -> Observaciones
+    const ws2 = workbook.addWorksheet(mixed ? `Resumen ${groupLabel}` : "Resumen Totales");
     const ws1 = workbook.addWorksheet(mixed ? `Detalle ${groupLabel}` : "Asistencias Detalladas");
-    ws1.addRow(["Grupo", "Nombre", "Instrumento", "Conciertos", ...rehearsalDates.map(d => d.date), "% Asistencia"]);
+    ws1.addRow(["Nombre", "Instrumento", "Conciertos", ...rehearsalDates.map(d => d.date), "% Asistencia"]);
 
     const rehearsalCols = [];
     rehearsalDates.forEach((d, i) => {
-        const col = 5 + i;
+        const col = 4 + i;
         if (!d.isConcert) rehearsalCols.push(col);
     });
 
@@ -487,7 +494,6 @@ async function addGroupSheets(workbook, rows, group, mixed) {
         const availability = row.concert_availability || "";
 
         const values = [
-            row.grupo === 'coro' ? 'Coro' : row.grupo === 'orquesta' ? 'Orquesta' : '-',
             row.full_name || '-',
             row.instrument || '-',
             availability || '-'
@@ -501,7 +507,7 @@ async function addGroupSheets(workbook, rows, group, mixed) {
 
         if (rehearsalCols.length > 0) {
             const sumTerms = rehearsalCols.map(c => `IF(${colLetter(c)}${rowObj.number}="🟩",1,0)`).join("+");
-            const pctCell = rowObj.getCell(5 + rehearsalDates.length);
+            const pctCell = rowObj.getCell(4 + rehearsalDates.length);
             pctCell.value = {
                 formula: `IF(${rehearsalCols.length}=0,"",(${sumTerms})/${rehearsalCols.length})`
             };
@@ -509,15 +515,14 @@ async function addGroupSheets(workbook, rows, group, mixed) {
         }
     });
 
-    ws1.getColumn(1).width = 12;
-    ws1.getColumn(2).width = 30;
-    ws1.getColumn(3).width = 20;
-    ws1.getColumn(4).width = 25;
-    rehearsalDates.forEach((_, i) => ws1.getColumn(5 + i).width = 10);
-    if (rehearsalDates.length > 0) ws1.getColumn(5 + rehearsalDates.length).width = 14;
+    ws1.getColumn(1).width = 30;
+    ws1.getColumn(2).width = 20;
+    ws1.getColumn(3).width = 25;
+    rehearsalDates.forEach((_, i) => ws1.getColumn(4 + i).width = 10);
+    if (rehearsalDates.length > 0) ws1.getColumn(4 + rehearsalDates.length).width = 14;
 
     if (rehearsalCols.length > 0) {
-        const pctCol = colLetter(5 + rehearsalDates.length);
+        const pctCol = colLetter(4 + rehearsalDates.length);
         ws1.addConditionalFormatting({
             ref: `${pctCol}2:${pctCol}${lastDataRow}`,
             rules: [{
@@ -538,7 +543,6 @@ async function addGroupSheets(workbook, rows, group, mixed) {
     }
 
     // --- Resumen Totales (recuentos + porcentajes debajo) ---
-    const ws2 = workbook.addWorksheet(mixed ? `Resumen ${groupLabel}` : "Resumen Totales");
     const detailRef = `'${ws1.name}'`;
     const totalRowIndex = 2 + instruments.length;
     const pctHeaderRow = totalRowIndex + 2;
@@ -551,22 +555,22 @@ async function addGroupSheets(workbook, rows, group, mixed) {
         const r = 2 + idx;
         ws2.getCell(r, 1).value = inst;
         ws2.getCell(r, 2).value = {
-            formula: `COUNTIF(${detailRef}!$C$2:$C$${lastDataRow},$A${r})`
+            formula: `COUNTIF(${detailRef}!$B$2:$B$${lastDataRow},$A${r})`
         };
         rehearsalDates.forEach((d, di) => {
-            const dateCol = colLetter(5 + di);
+            const dateCol = colLetter(4 + di);
             ws2.getCell(r, 3 + di).value = {
-                formula: `SUMPRODUCT((${detailRef}!$C$2:$C$${lastDataRow}=$A${r})*(${detailRef}!${dateCol}$2:${dateCol}$${lastDataRow}="🟩"))`
+                formula: `SUMPRODUCT((${detailRef}!$B$2:$B$${lastDataRow}=$A${r})*(${detailRef}!${dateCol}$2:${dateCol}$${lastDataRow}="🟩"))`
             };
         });
     });
 
     ws2.getCell(totalRowIndex, 1).value = "TOTAL GENERAL";
     ws2.getCell(totalRowIndex, 2).value = {
-        formula: `COUNTA(${detailRef}!$C$2:$C$${lastDataRow})`
+        formula: `COUNTA(${detailRef}!$B$2:$B$${lastDataRow})`
     };
     rehearsalDates.forEach((d, di) => {
-        const dateCol = colLetter(5 + di);
+        const dateCol = colLetter(4 + di);
         ws2.getCell(totalRowIndex, 3 + di).value = {
             formula: `SUMPRODUCT(--(${detailRef}!${dateCol}2:${dateCol}${lastDataRow}="🟩"))`
         };
@@ -627,7 +631,6 @@ async function addGroupSheets(workbook, rows, group, mixed) {
     const observationsData = sortedData
         .filter(row => (row.observations || "").trim().length > 0)
         .map(row => ({
-            "Grupo": row.grupo === 'coro' ? 'Coro' : row.grupo === 'orquesta' ? 'Orquesta' : '-',
             "Nombre": row.full_name || '-',
             "Instrumento": row.instrument || '-',
             "Tipo Asistencia": row.rehearsal_commitment || '-',
@@ -636,13 +639,12 @@ async function addGroupSheets(workbook, rows, group, mixed) {
 
     if (observationsData.length > 0) {
         const ws4 = workbook.addWorksheet(mixed ? `Observaciones ${groupLabel}` : "Observaciones Especiales");
-        ws4.addRow(["Grupo", "Nombre", "Instrumento", "Tipo Asistencia", "Observaciones"]);
-        observationsData.forEach(o => ws4.addRow([o.Grupo, o.Nombre, o.Instrumento, o["Tipo Asistencia"], o.Observaciones]));
-        ws4.getColumn(1).width = 12;
-        ws4.getColumn(2).width = 30;
-        ws4.getColumn(3).width = 20;
-        ws4.getColumn(4).width = 30;
-        ws4.getColumn(5).width = 80;
+        ws4.addRow(["Nombre", "Instrumento", "Tipo Asistencia", "Observaciones"]);
+        observationsData.forEach(o => ws4.addRow([o.Nombre, o.Instrumento, o["Tipo Asistencia"], o.Observaciones]));
+        ws4.getColumn(1).width = 30;
+        ws4.getColumn(2).width = 20;
+        ws4.getColumn(3).width = 30;
+        ws4.getColumn(4).width = 80;
     }
 }
 
@@ -672,4 +674,233 @@ exportExcelBtn.addEventListener('click', async () => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
+});
+
+// ==================== Exportación PDF ====================
+// Espejo exacto de la exportación a Excel: mismas tablas, mismo orden,
+// mismos valores calculados y misma escala de color de los formatos condicionales.
+// Detalle y Resumen en A4 horizontal ajustados al ancho; Observaciones en A4 vertical.
+
+const PDF_EMOJI_FILL = { '🟩': [99, 190, 123], '🟥': [248, 105, 107], '🟧': [251, 172, 119] };
+const PDF_MARGIN = 10;
+const PDF_LINE = { lineColor: [170, 170, 170], lineWidth: 0.1 };
+
+function pdfTitleRow(title, colSpan) {
+    return [{
+        content: title,
+        colSpan,
+        styles: { halign: 'left', fontStyle: 'bold', fontSize: 10, fillColor: [255, 255, 255], textColor: 40, cellPadding: { top: 0.5, bottom: 2, left: 0.5, right: 0 } }
+    }];
+}
+
+function pdfTotalStyle(data) {
+    if (data.section === 'body' && data.row.raw[0] === 'TOTAL GENERAL') {
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fillColor = [240, 240, 240];
+    }
+}
+
+async function addGroupPdfSections(doc, rows, group, mixed, firstPage) {
+    const rehearsalDates = await fetchRehearsalDates(group);
+    const sortedData = [...rows].sort(compareByInstrument);
+    const instruments = Array.from(new Set(sortedData.map(d => d.instrument || "-"))).sort();
+    const groupLabel = group === 'coro' ? 'Coro' : 'Orquesta';
+    const detailTitle = mixed ? `Detalle ${groupLabel}` : "Asistencias Detalladas";
+    const summaryTitle = mixed ? `Resumen ${groupLabel}` : "Resumen Totales";
+    const obsTitle = mixed ? `Observaciones ${groupLabel}` : "Observaciones Especiales";
+    const rehearsalCount = rehearsalDates.filter(d => !d.isConcert).length;
+
+    const greensFor = (rowFilter, { date, isConcert }) =>
+        sortedData.filter(r => (!rowFilter || rowFilter(r)) && statusEmoji(r, date, isConcert) === '🟩').length;
+
+    // --- Resumen Totales (página propia: recuentos + porcentajes debajo) ---
+    if (!firstPage) doc.addPage('a4', 'landscape');
+
+    const plantillaOf = inst => sortedData.filter(r => (r.instrument || '-') === inst).length;
+    const summaryHead = ["Instrumento", "Plantilla", ...rehearsalDates.map(d => d.date)];
+    const compactMargin = { left: PDF_MARGIN, right: PDF_MARGIN, top: PDF_MARGIN };
+    const compactStyles = { fontSize: 6, cellPadding: 0.7, halign: 'center', textColor: 30, overflow: 'linebreak', ...PDF_LINE };
+    const compactHead = { fillColor: [238, 238, 238], textColor: 30, fontStyle: 'bold', fontSize: 6 };
+
+    doc.autoTable({
+        head: [pdfTitleRow(summaryTitle, 2 + rehearsalDates.length), summaryHead],
+        body: [
+            ...instruments.map(inst => [
+                inst,
+                plantillaOf(inst),
+                ...rehearsalDates.map(d => greensFor(r => (r.instrument || '-') === inst, d))
+            ]),
+            ["TOTAL GENERAL", sortedData.length, ...rehearsalDates.map(d => greensFor(null, d))]
+        ],
+        margin: compactMargin,
+        tableWidth: 'auto',
+        styles: compactStyles,
+        headStyles: compactHead,
+        columnStyles: { 0: { halign: 'left', cellWidth: 38 }, 1: { cellWidth: 26 } },
+        didParseCell: pdfTotalStyle
+    });
+
+    doc.autoTable({
+        head: [summaryHead],
+        body: [
+            ...instruments.map(inst => {
+                const pl = plantillaOf(inst);
+                return [
+                    inst,
+                    pl,
+                    ...rehearsalDates.map(d => {
+                        const c = greensFor(r => (r.instrument || '-') === inst, d);
+                        return pl === 0 ? '' : c / pl;
+                    })
+                ];
+            }),
+            ["TOTAL GENERAL",
+                sortedData.length,
+                ...rehearsalDates.map(d => {
+                    const c = greensFor(null, d);
+                    return sortedData.length === 0 ? '' : c / sortedData.length;
+                })
+            ]
+        ],
+        startY: doc.lastAutoTable.finalY + 5,
+        margin: compactMargin,
+        tableWidth: 'auto',
+        styles: compactStyles,
+        headStyles: compactHead,
+        columnStyles: { 0: { halign: 'left', cellWidth: 38 }, 1: { cellWidth: 26 } },
+        didParseCell: (data) => {
+            pdfTotalStyle(data);
+            if (data.section === 'body' && data.column.index > 1 && typeof data.cell.raw === 'number') {
+                data.cell.text = [Math.round(data.cell.raw * 100) + '%'];
+                data.cell.styles.fillColor = pctRgb(data.cell.raw);
+            }
+        }
+    });
+
+    // --- Detalle del grupo (página nueva) ---
+    doc.addPage('a4', 'landscape');
+    const pctColIndex = 3 + rehearsalDates.length;
+
+    // Anchura de Nombre ajustada al nombre más largo
+    doc.setFontSize(compactStyles.fontSize);
+    let longestName = "Nombre";
+    sortedData.forEach(row => {
+        const n = row.full_name || '-';
+        if (doc.getTextWidth(n) > doc.getTextWidth(longestName)) longestName = n;
+    });
+    const nameW = Math.ceil(doc.getTextWidth(longestName)) + 2.5;
+
+    const longestDate = rehearsalDates.reduce((a, d) => (d.date.length > a.length ? d.date : a), "");
+    const minDateW = Math.ceil(doc.getTextWidth(longestDate)) + 2;
+
+    const availPerDate = Math.floor((275 - (nameW + 14 + 14 + 16)) / Math.max(1, rehearsalDates.length));
+    const dateW = Math.max(minDateW, Math.min(16, availPerDate));
+
+    // Márgenes izquierdo y derecho igualados: si el ancho total excede el útil,
+    // se escalan proporcionalmente todas las columnas para que la tabla quepa.
+    const layout = [
+        [0, nameW],
+        [1, 14],
+        [2, 14],
+        [pctColIndex, 16],
+        ...rehearsalDates.map((_, i) => [3 + i, dateW])
+    ];
+    const totalW = layout.reduce((s, [, w]) => s + w, 0);
+    if (totalW > 275) {
+        const k = 275 / totalW;
+        layout.forEach(col => { col[1] = Math.max(3, Math.floor(col[1] * k * 100) / 100); });
+    }
+
+    const detailColumns = {};
+    layout.forEach(([idx, w]) => {
+        const base = (idx === 0 || idx === 1) ? { halign: 'left' } : {};
+        detailColumns[idx] = { ...base, cellWidth: w };
+    });
+
+    doc.autoTable({
+        head: [
+            pdfTitleRow(detailTitle, 4 + rehearsalDates.length),
+            ["Nombre", "Instrumento", "Conciertos", ...rehearsalDates.map(d => d.date), "% Asistencia"]
+        ],
+        body: sortedData.map(row => {
+            const pct = rehearsalCount > 0
+                ? rehearsalDates.filter(d => !d.isConcert && statusEmoji(row, d.date, false) === '🟩').length / rehearsalCount
+                : '';
+            return [
+                row.full_name || '-',
+                row.instrument || '-',
+                row.concert_availability || '-',
+                ...rehearsalDates.map(({ date, isConcert }) => statusEmoji(row, date, isConcert)),
+                pct
+            ];
+        }),
+        margin: compactMargin,
+        tableWidth: 'wrap',
+        styles: compactStyles,
+        headStyles: compactHead,
+        columnStyles: detailColumns,
+        didParseCell: (data) => {
+            if (data.section !== 'body') return;
+            const fill = PDF_EMOJI_FILL[data.cell.raw];
+            if (fill) {
+                data.cell.styles.fillColor = fill;
+                data.cell.text = [''];
+            } else if (data.column.index === pctColIndex && typeof data.cell.raw === 'number') {
+                data.cell.text = [(data.cell.raw * 100).toFixed(2) + '%'];
+                data.cell.styles.fillColor = pctRgb(data.cell.raw);
+            }
+        }
+    });
+
+    // --- Observaciones (página nueva vertical) ---
+    const observationsData = sortedData
+        .filter(row => (row.observations || "").trim().length > 0)
+        .map(row => [
+            row.full_name || '-',
+            row.instrument || '-',
+            row.rehearsal_commitment || '-',
+            row.observations
+        ]);
+
+    if (observationsData.length > 0) {
+        doc.addPage('a4', 'portrait');
+        doc.autoTable({
+            head: [pdfTitleRow(obsTitle, 4), ["Nombre", "Instrumento", "Tipo Asistencia", "Observaciones"]],
+            body: observationsData,
+            margin: compactMargin,
+            tableWidth: 'auto',
+            styles: { fontSize: 7, cellPadding: 1.2, halign: 'left', valign: 'top', textColor: 30, ...PDF_LINE },
+            headStyles: { fillColor: [238, 238, 238], textColor: 30, fontStyle: 'bold', fontSize: 7 },
+            columnStyles: { 0: { cellWidth: 34 }, 1: { cellWidth: 24 }, 2: { cellWidth: 42 }, 3: { cellWidth: 'auto' } },
+            didParseCell: pdfTotalStyle
+        });
+    }
+}
+
+exportPdfBtn.addEventListener('click', async () => {
+    if (displayedData.length === 0) return;
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert('No se pudo cargar el generador de PDF.');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+    const sortedData = dedupeLatest(displayedData);
+
+    const coroRows = sortedData.filter(row => row.grupo === 'coro');
+    const orquestaRows = sortedData.filter(row => row.grupo !== 'coro');
+    const mixed = coroRows.length > 0 && orquestaRows.length > 0;
+
+    let firstPage = true;
+    if (orquestaRows.length > 0) {
+        await addGroupPdfSections(doc, orquestaRows, 'orquesta', mixed, firstPage);
+        firstPage = false;
+    }
+    if (coroRows.length > 0) {
+        await addGroupPdfSections(doc, coroRows, 'coro', mixed, firstPage);
+    }
+
+    doc.save(PROGRAM_CONFIG.exportFileName.replace(/\.xlsx$/i, '') + '.pdf');
 });
