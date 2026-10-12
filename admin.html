@@ -113,14 +113,17 @@
         }
 
         #view-members table,
-        #view-sections table {
+        #view-sections table,
+        #view-afternoon table {
             min-width: 800px;
         }
 
         #view-members th,
         #view-members td,
         #view-sections th,
-        #view-sections td {
+        #view-sections td,
+        #view-afternoon th,
+        #view-afternoon td {
             text-align: center;
             padding: 10px 12px;
             white-space: nowrap;
@@ -129,7 +132,9 @@
         #view-members th:nth-child(-n+3),
         #view-members td:nth-child(-n+3),
         #view-sections th:first-child,
-        #view-sections td:first-child {
+        #view-sections td:first-child,
+        #view-afternoon th:nth-child(-n+3),
+        #view-afternoon td:nth-child(-n+3) {
             text-align: left;
         }
 
@@ -196,6 +201,7 @@
             <button id="viewTableBtn" class="view-toggle-btn active">Tabla</button>
             <button id="viewMembersBtn" class="view-toggle-btn">Por miembro</button>
             <button id="viewSectionsBtn" class="view-toggle-btn">Por secciones</button>
+            <button id="viewAfternoonBtn" class="view-toggle-btn">Ensayos de tarde</button>
         </div>
 
         <!-- Filters Section -->
@@ -246,6 +252,7 @@
 
         <div id="view-members" class="table-responsive hidden"></div>
         <div id="view-sections" class="table-responsive hidden"></div>
+        <div id="view-afternoon" class="table-responsive hidden"></div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>

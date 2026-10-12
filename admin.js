@@ -22,12 +22,14 @@ const clearFiltersBtn = document.getElementById('clearFiltersBtn');
 const viewButtons = {
     table: document.getElementById('viewTableBtn'),
     members: document.getElementById('viewMembersBtn'),
-    sections: document.getElementById('viewSectionsBtn')
+    sections: document.getElementById('viewSectionsBtn'),
+    afternoon: document.getElementById('viewAfternoonBtn')
 };
 const viewContainers = {
     table: document.getElementById('view-table'),
     members: document.getElementById('view-members'),
-    sections: document.getElementById('view-sections')
+    sections: document.getElementById('view-sections'),
+    afternoon: document.getElementById('view-afternoon')
 };
 let currentView = 'table';
 const datesCache = { orquesta: null, coro: null };
@@ -42,6 +44,7 @@ const filters = {
 
 let allData = [];
 let displayedData = [];
+let afternoonData = [];
 
 // Dev-only default credentials (file gitignored: assets/dev-auth.js)
 let devSession = false;
@@ -97,6 +100,7 @@ supabase.auth.onAuthStateChange((event, session) => {
     } else if (event === 'SIGNED_OUT') {
         showLogin();
         allData = [];
+        afternoonData = [];
     }
 });
 
@@ -130,6 +134,7 @@ logoutBtn.addEventListener('click', () => {
         devSession = false;
         showLogin();
         allData = [];
+        afternoonData = [];
     } else {
         supabase.auth.signOut();
     }
@@ -146,6 +151,18 @@ async function loadData() {
         if (error) throw error;
 
         allData = data || [];
+
+        try {
+            const { data: afternoon, error: afternoonError } = await supabase
+                .from("respuestas_ensayos_tarde")
+                .select("*")
+                .order("created_at", { ascending: false });
+            if (afternoonError) throw afternoonError;
+            afternoonData = afternoon || [];
+        } catch (afternoonErr) {
+            console.warn("No se pudieron cargar las respuestas de ensayos de tarde:", afternoonErr);
+            afternoonData = [];
+        }
 
         populateDynamicFilters();
         renderTable(allData);
@@ -259,6 +276,57 @@ function activeGroupKey() {
 function refreshActiveView() {
     if (currentView === 'members') renderMembersView(displayedData);
     else if (currentView === 'sections') renderSectionsView(displayedData);
+    else if (currentView === 'afternoon') renderAfternoonView(afternoonData);
+}
+
+// ---- Vista "Ensayos de tarde" (tabla respuestas_ensayos_tarde) ----
+
+function splitAfternoonDates(value) {
+    return String(value || '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s && s !== '-');
+}
+
+function getAfternoonDates() {
+    const configured = (PROGRAM_CONFIG.afternoonRehearsals || []).map(r => r.date);
+    const extra = [];
+    afternoonData.forEach(row => {
+        splitAfternoonDates(row.available_dates).forEach(d => {
+            if (!configured.includes(d) && !extra.includes(d)) extra.push(d);
+        });
+    });
+    return [...configured, ...extra];
+}
+
+function renderAfternoonView(data) {
+    const container = viewContainers.afternoon;
+    if (!data || data.length === 0) {
+        container.innerHTML = emptyStateHTML();
+        return;
+    }
+
+    const dates = getAfternoonDates();
+    let html = '<table><thead><tr><th>Fecha</th><th>Nombre</th><th>Instrumento</th>';
+    dates.forEach(d => { html += `<th>${d}</th>`; });
+    html += '<th>Total</th></tr></thead><tbody>';
+
+    data.forEach(row => {
+        const chosen = splitAfternoonDates(row.available_dates);
+        const created = row.created_at ? new Date(row.created_at).toLocaleString() : '-';
+        html += `<tr>
+            <td>${created}</td>
+            <td><strong>${row.full_name || '-'}</strong></td>
+            <td>${row.instrument || '-'}</td>`;
+        dates.forEach(d => {
+            const has = chosen.includes(d);
+            html += `<td class="emoji-cell" style="${has ? 'color:#2e7d32;font-weight:700;' : 'color:#bbb;'}">${has ? '✓' : '–'}</td>`;
+        });
+        html += `<td class="pct-cell">${chosen.length}</td></tr>`;
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
 }
 
 Object.keys(viewButtons).forEach(key => {
@@ -376,6 +444,7 @@ async function renderSectionsView(data) {
 }
 
 exportBtn.addEventListener('click', () => {
+    if (currentView === 'afternoon') return exportAfternoonCsv();
     if (displayedData.length === 0) return;
 
     const headers = ["Fecha", "Grupo", "Nombre", "Instrumento", "Conciertos", "Ensayos", "Fechas Ausencia", "Observaciones"];
@@ -649,6 +718,7 @@ async function addGroupSheets(workbook, rows, group, mixed) {
 }
 
 exportExcelBtn.addEventListener('click', async () => {
+    if (currentView === 'afternoon') return exportAfternoonExcel();
     if (displayedData.length === 0) return;
 
     const sortedData = dedupeLatest(displayedData).sort(compareByInstrument);
@@ -835,7 +905,7 @@ async function addGroupPdfSections(doc, rows, group, mixed, firstPage) {
             ];
         }),
         margin: compactMargin,
-        tableWidth: 'wrap',
+        tableWidth: layout.reduce((s, [, w]) => s + w, 0),
         styles: compactStyles,
         headStyles: compactHead,
         columnStyles: detailColumns,
@@ -878,6 +948,7 @@ async function addGroupPdfSections(doc, rows, group, mixed, firstPage) {
 }
 
 exportPdfBtn.addEventListener('click', async () => {
+    if (currentView === 'afternoon') return exportAfternoonPdf();
     if (displayedData.length === 0) return;
     if (!window.jspdf || !window.jspdf.jsPDF) {
         alert('No se pudo cargar el generador de PDF.');
@@ -904,3 +975,376 @@ exportPdfBtn.addEventListener('click', async () => {
 
     doc.save(PROGRAM_CONFIG.exportFileName.replace(/\.xlsx$/i, '') + '.pdf');
 });
+
+// ==================== Exportación "Ensayos de tarde" ====================
+// Versión paralela a la exportación de asistencia, pero limitada a las fechas
+// posibles de la tarde (PROGRAM_CONFIG.afternoonRehearsals):
+//   Excel: "Resumen Totales" + "Disponibilidad Detallada" (con % y escala de color).
+//   PDF:   espejo exacto (Resumen + Detalle) en A4 horizontal.
+
+const AFTERNOON_EMOJI_FILL = { '🟩': [99, 190, 123], '🟥': [248, 105, 107] };
+
+function afternoonDates() {
+    return (PROGRAM_CONFIG.afternoonRehearsals || []).map(r => r.date);
+}
+
+function statusAfternoonEmoji(row, date) {
+    return splitAfternoonDates(row.available_dates).includes(date) ? '🟩' : '🟥';
+}
+
+function addAfternoonSheets(workbook, rows) {
+    const dates = afternoonDates();
+    const sortedData = [...rows].sort(compareByInstrument);
+    const instruments = Array.from(new Set(sortedData.map(d => d.instrument || "-"))).sort();
+    const lastDataRow = sortedData.length + 1;
+
+    // Orden de hojas: Resumen -> Detalle
+    const ws2 = workbook.addWorksheet("Resumen Totales");
+    const ws1 = workbook.addWorksheet("Disponibilidad Detallada");
+    ws1.addRow(["Nombre", "Instrumento", ...dates, "% Disponibilidad"]);
+
+    const dateCols = dates.map((_, i) => 3 + i);
+
+    sortedData.forEach(row => {
+        const values = [row.full_name || '-', row.instrument || '-'];
+        dates.forEach(d => values.push(statusAfternoonEmoji(row, d)));
+        const rowObj = ws1.addRow(values);
+
+        if (dateCols.length > 0) {
+            const sumTerms = dateCols.map(c => `IF(${colLetter(c)}${rowObj.number}="🟩",1,0)`).join("+");
+            const pctCell = rowObj.getCell(3 + dates.length);
+            pctCell.value = {
+                formula: `IF(${dateCols.length}=0,"",(${sumTerms})/${dateCols.length})`
+            };
+            pctCell.numFmt = '0.00%';
+        }
+    });
+
+    ws1.getColumn(1).width = 30;
+    ws1.getColumn(2).width = 20;
+    dates.forEach((_, i) => ws1.getColumn(3 + i).width = 10);
+    if (dates.length > 0) ws1.getColumn(3 + dates.length).width = 16;
+
+    if (dateCols.length > 0) {
+        const pctCol = colLetter(3 + dates.length);
+        ws1.addConditionalFormatting({
+            ref: `${pctCol}2:${pctCol}${lastDataRow}`,
+            rules: [{
+                type: 'colorScale',
+                cfvo: [
+                    { type: 'num', value: 0 },
+                    { type: 'num', value: 0.5 },
+                    { type: 'num', value: 1 }
+                ],
+                color: [
+                    { argb: 'FFF8696B' },
+                    { argb: 'FFFFEB84' },
+                    { argb: 'FF63BE7B' }
+                ],
+                priority: 1
+            }]
+        });
+    }
+
+    // --- Resumen Totales (recuentos + porcentajes debajo) ---
+    const detailRef = `'${ws1.name}'`;
+    const totalRowIndex = 2 + instruments.length;
+    const pctStartRow = totalRowIndex + 3;
+    const pctTotalRow = pctStartRow + instruments.length;
+
+    ws2.addRow(["Instrumento", "Plantilla", ...dates]);
+
+    instruments.forEach((inst, idx) => {
+        const r = 2 + idx;
+        ws2.getCell(r, 1).value = inst;
+        ws2.getCell(r, 2).value = {
+            formula: `COUNTIF(${detailRef}!$B$2:$B$${lastDataRow},$A${r})`
+        };
+        dates.forEach((d, di) => {
+            const dateCol = colLetter(3 + di);
+            ws2.getCell(r, 3 + di).value = {
+                formula: `SUMPRODUCT((${detailRef}!$B$2:$B$${lastDataRow}=$A${r})*(${detailRef}!${dateCol}$2:${dateCol}$${lastDataRow}="🟩"))`
+            };
+        });
+    });
+
+    ws2.getCell(totalRowIndex, 1).value = "TOTAL GENERAL";
+    ws2.getCell(totalRowIndex, 2).value = {
+        formula: `COUNTA(${detailRef}!$B$2:$B$${lastDataRow})`
+    };
+    dates.forEach((d, di) => {
+        const dateCol = colLetter(3 + di);
+        ws2.getCell(totalRowIndex, 3 + di).value = {
+            formula: `SUMPRODUCT(--(${detailRef}!${dateCol}2:${dateCol}${lastDataRow}="🟩"))`
+        };
+    });
+
+    ws2.addRow([]);
+    ws2.addRow(["Instrumento", "Plantilla", ...dates]);
+
+    instruments.forEach((inst, idx) => {
+        const r = pctStartRow + idx;
+        const c = 2 + idx;
+        ws2.getCell(r, 1).value = inst;
+        ws2.getCell(r, 2).value = { formula: `=$B$${c}` };
+        dates.forEach((d, di) => {
+            const col = 3 + di;
+            ws2.getCell(r, col).value = {
+                formula: `IF($B$${c}=0,"",${colLetter(col)}$${c}/$B$${c})`
+            };
+            ws2.getCell(r, col).numFmt = '0%';
+        });
+    });
+
+    ws2.getCell(pctTotalRow, 1).value = "TOTAL GENERAL";
+    ws2.getCell(pctTotalRow, 2).value = { formula: `=$B$${totalRowIndex}` };
+    dates.forEach((d, di) => {
+        const col = 3 + di;
+        ws2.getCell(pctTotalRow, col).value = {
+            formula: `IF($B$${totalRowIndex}=0,"",${colLetter(col)}$${totalRowIndex}/$B$${totalRowIndex})`
+        };
+        ws2.getCell(pctTotalRow, col).numFmt = '0%';
+    });
+
+    ws2.getColumn(1).width = 20;
+    ws2.getColumn(2).width = 20;
+    dates.forEach((_, i) => ws2.getColumn(3 + i).width = 12);
+
+    if (dates.length > 0) {
+        ws2.addConditionalFormatting({
+            ref: `C${pctStartRow}:${colLetter(2 + dates.length)}${pctTotalRow}`,
+            rules: [{
+                type: 'colorScale',
+                cfvo: [
+                    { type: 'num', value: 0 },
+                    { type: 'num', value: 0.5 },
+                    { type: 'num', value: 1 }
+                ],
+                color: [
+                    { argb: 'FFF8696B' },
+                    { argb: 'FFFFEB84' },
+                    { argb: 'FF63BE7B' }
+                ],
+                priority: 1
+            }]
+        });
+    }
+}
+
+function addAfternoonPdfSections(doc, rows, firstPage) {
+    const dates = afternoonDates();
+    const sortedData = [...rows].sort(compareByInstrument);
+    const instruments = Array.from(new Set(sortedData.map(d => d.instrument || "-"))).sort();
+
+    const compactMargin = { left: PDF_MARGIN, right: PDF_MARGIN, top: PDF_MARGIN };
+    const compactStyles = { fontSize: 6, cellPadding: 0.7, halign: 'center', textColor: 30, overflow: 'linebreak', ...PDF_LINE };
+    const compactHead = { fillColor: [238, 238, 238], textColor: 30, fontStyle: 'bold', fontSize: 6 };
+
+    const greensFor = (rowFilter, date) =>
+        sortedData.filter(r => (!rowFilter || rowFilter(r)) && statusAfternoonEmoji(r, date) === '🟩').length;
+
+    // --- Resumen Totales (página propia: recuentos + porcentajes debajo) ---
+    if (!firstPage) doc.addPage('a4', 'landscape');
+
+    const plantillaOf = inst => sortedData.filter(r => (r.instrument || '-') === inst).length;
+    const summaryHead = ["Instrumento", "Plantilla", ...dates];
+
+    doc.autoTable({
+        head: [pdfTitleRow("Resumen Totales", 2 + dates.length), summaryHead],
+        body: [
+            ...instruments.map(inst => [
+                inst,
+                plantillaOf(inst),
+                ...dates.map(d => greensFor(r => (r.instrument || '-') === inst, d))
+            ]),
+            ["TOTAL GENERAL", sortedData.length, ...dates.map(d => greensFor(null, d))]
+        ],
+        margin: compactMargin,
+        tableWidth: 'auto',
+        styles: compactStyles,
+        headStyles: compactHead,
+        columnStyles: { 0: { halign: 'left', cellWidth: 38 }, 1: { cellWidth: 26 } },
+        didParseCell: pdfTotalStyle
+    });
+
+    doc.autoTable({
+        head: [summaryHead],
+        body: [
+            ...instruments.map(inst => {
+                const pl = plantillaOf(inst);
+                return [
+                    inst,
+                    pl,
+                    ...dates.map(d => {
+                        const c = greensFor(r => (r.instrument || '-') === inst, d);
+                        return pl === 0 ? '' : c / pl;
+                    })
+                ];
+            }),
+            ["TOTAL GENERAL",
+                sortedData.length,
+                ...dates.map(d => {
+                    const c = greensFor(null, d);
+                    return sortedData.length === 0 ? '' : c / sortedData.length;
+                })
+            ]
+        ],
+        startY: doc.lastAutoTable.finalY + 5,
+        margin: compactMargin,
+        tableWidth: 'auto',
+        styles: compactStyles,
+        headStyles: compactHead,
+        columnStyles: { 0: { halign: 'left', cellWidth: 38 }, 1: { cellWidth: 26 } },
+        didParseCell: (data) => {
+            pdfTotalStyle(data);
+            if (data.section === 'body' && data.column.index > 1 && typeof data.cell.raw === 'number') {
+                data.cell.text = [Math.round(data.cell.raw * 100) + '%'];
+                data.cell.styles.fillColor = pctRgb(data.cell.raw);
+            }
+        }
+    });
+
+    // --- Disponibilidad Detallada (página nueva) ---
+    doc.addPage('a4', 'landscape');
+    const pctColIndex = 2 + dates.length;
+
+    doc.setFontSize(compactStyles.fontSize);
+    let longestName = "Nombre";
+    sortedData.forEach(row => {
+        const n = row.full_name || '-';
+        if (doc.getTextWidth(n) > doc.getTextWidth(longestName)) longestName = n;
+    });
+    const nameW = Math.ceil(doc.getTextWidth(longestName)) + 2.5;
+
+    const longestDate = dates.reduce((a, d) => (d.length > a.length ? d : a), "");
+    const minDateW = Math.ceil(doc.getTextWidth(longestDate)) + 2;
+
+    const availPerDate = Math.floor((275 - (nameW + 14 + 16)) / Math.max(1, dates.length));
+    const dateW = Math.max(minDateW, Math.min(20, availPerDate));
+
+    // Márgenes izquierdo y derecho igualados: si el ancho total excede el útil,
+    // se escalan proporcionalmente todas las columnas para que la tabla quepa.
+    const layout = [
+        [0, nameW],
+        [1, 14],
+        [pctColIndex, 16],
+        ...dates.map((_, i) => [2 + i, dateW])
+    ];
+    const totalW = layout.reduce((s, [, w]) => s + w, 0);
+    if (totalW > 275) {
+        const k = 275 / totalW;
+        layout.forEach(col => { col[1] = Math.max(3, Math.floor(col[1] * k * 100) / 100); });
+    }
+
+    const detailColumns = {};
+    layout.forEach(([idx, w]) => {
+        const base = (idx === 0 || idx === 1) ? { halign: 'left' } : {};
+        detailColumns[idx] = { ...base, cellWidth: w };
+    });
+
+    const dateCount = dates.length;
+    doc.autoTable({
+        head: [
+            pdfTitleRow("Disponibilidad Detallada", 3 + dates.length),
+            ["Nombre", "Instrumento", ...dates, "% Disponibilidad"]
+        ],
+        body: sortedData.map(row => {
+            const pct = dateCount > 0
+                ? dates.filter(d => statusAfternoonEmoji(row, d) === '🟩').length / dateCount
+                : '';
+            return [
+                row.full_name || '-',
+                row.instrument || '-',
+                ...dates.map(d => statusAfternoonEmoji(row, d)),
+                pct
+            ];
+        }),
+        margin: compactMargin,
+        tableWidth: layout.reduce((s, [, w]) => s + w, 0),
+        styles: compactStyles,
+        headStyles: compactHead,
+        columnStyles: detailColumns,
+        didParseCell: (data) => {
+            if (data.section !== 'body') return;
+            const fill = AFTERNOON_EMOJI_FILL[data.cell.raw];
+            if (fill) {
+                data.cell.styles.fillColor = fill;
+                data.cell.text = [''];
+            } else if (data.column.index === pctColIndex && typeof data.cell.raw === 'number') {
+                data.cell.text = [(data.cell.raw * 100).toFixed(2) + '%'];
+                data.cell.styles.fillColor = pctRgb(data.cell.raw);
+            }
+        }
+    });
+}
+
+function exportAfternoonCsv() {
+    if (afternoonData.length === 0) {
+        alert('No hay respuestas de ensayos de tarde para exportar.');
+        return;
+    }
+
+    const dates = afternoonDates();
+    const headers = ["Nombre", "Instrumento", ...dates, "% Disponibilidad"];
+    const csvRows = [headers.join(',')];
+
+    [...afternoonData].sort(compareByInstrument).forEach(row => {
+        const chosen = splitAfternoonDates(row.available_dates);
+        const pct = dates.length > 0 ? Math.round((chosen.filter(d => dates.includes(d)).length / dates.length) * 100) + '%' : '';
+        const values = [
+            `"${row.full_name || ''}"`,
+            `"${row.instrument || ''}"`,
+            ...dates.map(d => `"${chosen.includes(d) ? 'Sí' : '-'}"`),
+            `"${pct}"`
+        ];
+        csvRows.push(values.join(','));
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csvContent));
+    link.setAttribute("download", "respuestas_ensayos_tarde.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+async function exportAfternoonExcel() {
+    if (afternoonData.length === 0) {
+        alert('No hay respuestas de ensayos de tarde para exportar.');
+        return;
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "OCGC";
+    workbook.created = new Date();
+    workbook.calcProperties = { fullCalcOnLoad: true };
+
+    addAfternoonSheets(workbook, dedupeLatest(afternoonData));
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = PROGRAM_CONFIG.exportFileName.replace(/\.xlsx$/i, '') + '_ensayos_tarde.xlsx';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+}
+
+function exportAfternoonPdf() {
+    if (afternoonData.length === 0) {
+        alert('No hay respuestas de ensayos de tarde para exportar.');
+        return;
+    }
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert('No se pudo cargar el generador de PDF.');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    addAfternoonPdfSections(doc, dedupeLatest(afternoonData), true);
+    doc.save(PROGRAM_CONFIG.exportFileName.replace(/\.xlsx$/i, '') + '_ensayos_tarde.pdf');
+}

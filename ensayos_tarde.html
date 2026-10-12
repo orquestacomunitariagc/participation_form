@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ensayos de tarde - <span data-program-name></span></title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=5">
+    <link rel="icon" type="image/png" href="assets/logo_OCGC_simple.png">
+</head>
+
+<body>
+    <div class="container">
+        <header class="form-header">
+            <img src="assets/logo_OCGC.png" alt="Logo OCGC" class="header-logo">
+            <h2>Disponibilidad para ensayos de tarde
+                <br>
+                Programa <span data-program-name></span></h2>
+            <div class="description" style="text-align: left;">
+                <div class="section-description">
+                    <p style="margin-bottom: 15px;">
+                        Estamos organizando unos ensayos de tarde <strong>para la orquesta</strong> con el objetivo de
+                        reforzar el trabajo del programa. Nos gustaría saber a cuál de las siguientes fechas podrías
+                        acudir.
+                    </p>
+                    <p style="margin-bottom: 15px;">
+                        Los ensayos tendrán lugar por la tarde <strong>de 17:00 a 19:00</strong> en los siguientes días:
+                    </p>
+                    <div class="form-group" id="infoDates" style="border-color: var(--primary-color); background: #fefcf6;">
+                        <!-- La lista de fechas se genera dinámicamente desde config.js -->
+                    </div>
+                    <p style="margin-bottom: 15px;">
+                        Puedes indicar <strong>una, ambas o ninguna</strong> de las fechas, según tu disponibilidad.
+                    </p>
+                </div>
+            </div>
+        </header>
+
+        <form id="afternoonForm">
+            <!-- Datos personales -->
+            <section class="form-section">
+                <h4>Datos personales</h4>
+                <div class="form-group">
+                    <label for="fullName"><strong>Nombre y apellidos:</strong> <span class="required-asterisk">*</span></label>
+                    <input type="text" id="fullName" name="fullName" placeholder="Escriba su nombre completo" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="instrument"><strong>Instrumento:</strong> <span class="required-asterisk">*</span></label>
+                    <select id="instrument" name="instrument" required>
+                        <option value="" disabled selected>Seleccione su instrumento</option>
+                    </select>
+                </div>
+            </section>
+
+            <!-- Disponibilidad -->
+            <section class="form-section">
+                <h4>¿A qué fecha(s) podrías asistir? <span class="required-asterisk">*</span></h4>
+                <p style="margin-bottom: 10px; color: #555;"><i>Selecciona una de las opciones.</i></p>
+                <div class="form-group">
+                    <div class="radio-group" id="dateOptions" style="flex-direction: column;">
+                        <!-- Las opciones de fecha se generan dinámicamente aquí -->
+                    </div>
+                </div>
+            </section>
+
+            <div class="form-footer">
+                <button type="submit" id="submitBtn">Enviar Respuesta</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Supabase SDK -->
+    <script type="module" src="assets/ensayos-tarde.js"></script>
+    <script type="module" src="assets/apply-config.js"></script>
+</body>
+
+</html>

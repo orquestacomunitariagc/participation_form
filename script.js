@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { supabaseConfig } from "./assets/supabase-config.js";
+import { PROGRAM_CONFIG } from "./assets/config.js";
 
 const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
 
@@ -20,14 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let selectedGroup = '';
     let calendarsInitialized = false;
 
-    const instrumentOptions = {
-        orquesta: [
-            'Arpa', 'Clarinete', 'Contrabajo', 'Fagot', 'Flauta', 'Oboe',
-            'Órgano', 'Percusión', 'Piano', 'Trombón', 'Trompa', 'Trompeta',
-            'Tuba', 'Viola', 'Violín primero', 'Violín segundo', 'Violonchelo', 'Otro'
-        ],
-        coro: ['Soprano', 'Alto', 'Tenor', 'Bajo', 'Otro']
-    };
+    const instrumentOptions = PROGRAM_CONFIG.instrumentOptions;
 
     function updateInstrumentOptions(group) {
         const select = document.getElementById('instrument');
