@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
             infoDates.innerHTML = '<p style="margin-bottom:0;color:#888;">No hay fechas configuradas.</p>';
         } else {
             infoDates.innerHTML = rehearsals
-                .map((r, i) => `<p style="margin-bottom:${i === rehearsals.length - 1 ? 0 : 5}px;"><strong>${r.label}</strong></p>`)
+                .map((r, i) => `<p style="margin:0 0 ${i === rehearsals.length - 1 ? 0 : 5}px;"><strong>${r.label}</strong></p>`)
                 .join('');
         }
     }
