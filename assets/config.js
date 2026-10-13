@@ -13,7 +13,7 @@ export const PROGRAM_CONFIG = {
     },
 
     afternoonRehearsals: [
-        { date: '24/10/2026', label: 'Sábado 24 de octubre},
+        { date: '24/10/2026', label: 'Sábado 24 de octubre'},
         { date: '31/10/2026', label: 'Sábado 31 de octubre' }
     ]
 };
