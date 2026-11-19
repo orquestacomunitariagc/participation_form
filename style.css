@@ -210,6 +210,45 @@ textarea {
     background-color: rgba(201, 167, 101, 0.05);
 }
 
+/* Detalle de conciertos: fecha en negrita + información extra destacada */
+.concert-detail {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    vertical-align: middle;
+}
+
+.concert-date {
+    font-weight: 700;
+    color: var(--secondary-color);
+    white-space: nowrap;
+}
+
+.concert-info {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background-color: rgba(201, 167, 101, 0.18);
+    border: 1px solid rgba(201, 167, 101, 0.55);
+    color: #6b4f12;
+    font-size: 0.82em;
+    font-weight: 600;
+    font-style: normal;
+    line-height: 1.45;
+    white-space: normal;
+}
+
+.concert-option-text {
+    flex: 1;
+    line-height: 1.5;
+}
+
+.concert-subtitle-label {
+    font-weight: 600;
+    color: var(--secondary-color);
+}
+
 /* Visibility classes */
 .hidden {
     display: none;

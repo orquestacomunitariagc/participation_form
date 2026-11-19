@@ -12,8 +12,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const restOfForm = document.getElementById('rest-of-form');
     const rehearsalRadios = document.getElementsByName('rehearsalCommitment');
     const absenceDatesGroup = document.getElementById('absence-dates-group');
-    const conditionalRequiredInputs = document.querySelectorAll('.conditional-required');
     const planificationBtnContainer = document.getElementById('planification-btn-container');
+    const rehearsalSection = document.getElementById('rehearsal-section');
+
+    const concertSection = document.getElementById('concert-section');
+    const concertSectionTitle = document.getElementById('concert-section-title');
+    const concertSectionSubtitle = document.getElementById('concert-section-subtitle');
+    const concertOptions = document.getElementById('concertOptions');
 
     const groupSelection = document.getElementById('group-selection');
     const groupOptions = document.getElementById('groupOptions');
@@ -31,14 +36,45 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const instrumentOptions = PROGRAM_CONFIG.instrumentOptions;
 
+    // Marca/desmarca como obligatorios todos los campos condicionales,
+    // incluidos los que se generan dinámicamente (conciertos).
+    function setConditionalRequired(required) {
+        document.querySelectorAll('.conditional-required').forEach(input => {
+            input.required = required;
+        });
+    }
+
+    // Paleta curada para las categorías de los calendarios. Se amplía a 14
+    // tonos distintos para que los tipos no repitan color tan rápido.
     const colorPalette = [
         { bg: '#e3f2fd', border: '#90caf9', text: '#1565c0' }, // Azul
         { bg: '#fff3e0', border: '#ffb74d', text: '#e65100' }, // Naranja
         { bg: '#fce4ec', border: '#f06292', text: '#880e4f' }, // Rosa
         { bg: '#e8f5e9', border: '#a5d6a7', text: '#2e7d32' }, // Verde
         { bg: '#f3e5f5', border: '#ce93d8', text: '#7b1fa2' }, // Púrpura
-        { bg: '#e0f2f1', border: '#80cbc4', text: '#00695c' }  // Turquesa
+        { bg: '#e0f2f1', border: '#80cbc4', text: '#00695c' }, // Turquesa
+        { bg: '#fff8e1', border: '#ffd54f', text: '#8d6e00' }, // Ámbar
+        { bg: '#e8eaf6', border: '#9fa8da', text: '#283593' }, // Índigo
+        { bg: '#ffebee', border: '#ef9a9a', text: '#b71c1c' }, // Rojo
+        { bg: '#f1f8e9', border: '#aed581', text: '#33691e' }, // Lima
+        { bg: '#e0f7fa', border: '#4dd0e1', text: '#006064' }, // Cian
+        { bg: '#fde7f3', border: '#ec7fc4', text: '#8e2a6b' }, // Magenta
+        { bg: '#efebe9', border: '#bcaaa4', text: '#4e342e' }, // Marrón
+        { bg: '#eceff1', border: '#b0bec5', text: '#37474f' }  // Pizarra
     ];
+
+    // Devuelve un color distinto para cada categoría. Si alguna vez hay más
+    // categorías que colores en la paleta, se generan tonos adicionales.
+    function getCategoryColor(index) {
+        if (index < colorPalette.length) return colorPalette[index];
+
+        const hue = Math.round((index * 137.508) % 360); // ángulo áureo
+        return {
+            bg: `hsl(${hue}, 85%, 94%)`,
+            border: `hsl(${hue}, 60%, 68%)`,
+            text: `hsl(${hue}, 75%, 28%)`
+        };
+    }
 
     function updateInstrumentOptions(group) {
         const select = document.getElementById('instrument');
@@ -85,6 +121,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const datesData = {}; // { "DD/MM/YYYY": "Tipo" }
         const categoriesMap = new Map(); // lowerCase -> nombre original
         const categoryColors = {}; // lowerCase -> { colors, displayName }
+        const concerts = []; // [{ date, type, info }]
+        const concertDates = new Set();
 
         // Eliminar un posible BOM al inicio del archivo.
         const content = text.replace(/^\uFEFF/, '');
@@ -100,28 +138,35 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             allowed.push(dateStr);
-            if (parts[1]) {
-                const type = parts[1].trim();
-                if (!type) return;
 
+            const type = (parts[1] || '').trim();
+            if (type) {
                 datesData[dateStr] = type;
                 const lowerType = type.toLowerCase();
                 if (!categoriesMap.has(lowerType)) {
                     categoriesMap.set(lowerType, type);
                 }
             }
+
+            // Un tercer campo (o varios) añade información extra al concierto.
+            const info = parts.slice(2).map(p => p.trim()).filter(Boolean).join(' · ');
+
+            if (type.toLowerCase().includes('concierto') && !concertDates.has(dateStr)) {
+                concertDates.add(dateStr);
+                concerts.push({ date: dateStr, type, info });
+            }
         });
 
         let colorIdx = 0;
         categoriesMap.forEach((originalName, lowerType) => {
             categoryColors[lowerType] = {
-                colors: colorPalette[colorIdx % colorPalette.length],
+                colors: getCategoryColor(colorIdx),
                 displayName: originalName
             };
             colorIdx++;
         });
 
-        return { allowed, datesData, categoryColors };
+        return { allowed, datesData, categoryColors, concerts };
     }
 
     async function fetchText(url) {
@@ -212,22 +257,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    async function initCalendars(entry) {
-        let data = entry;
+    // Fail-open: carga y parsea las fechas de la agrupación si aún no están.
+    async function ensureGroupData(entry) {
+        if (entry.allowed) return entry;
 
-        // Fail-open: si no se pudieron precargar las fechas, se descargan ahora.
-        if (!data.allowed) {
-            let parsed = { allowed: [], datesData: {}, categoryColors: {} };
-            try {
-                const text = await fetchText(data.fechas);
-                if (text) parsed = parseDatesFile(text);
-            } catch (error) {
-                console.error('Error cargando fechas:', error);
-            }
-            data = { ...data, ...parsed };
-            Object.assign(entry, data);
+        let parsed = { allowed: [], datesData: {}, categoryColors: {}, concerts: [] };
+        try {
+            const text = await fetchText(entry.fechas);
+            if (text) parsed = parseDatesFile(text);
+        } catch (error) {
+            console.error('Error cargando fechas:', error);
         }
 
+        Object.assign(entry, parsed);
+        return entry;
+    }
+
+    async function initCalendars(entry) {
+        const data = await ensureGroupData(entry);
         const { allowed, datesData, categoryColors } = data;
         const container = document.getElementById('dynamicCalendarsContainer');
 
@@ -307,6 +354,138 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // ---------------------------------------------------------------------
+    // Sección de conciertos
+    // ---------------------------------------------------------------------
+
+    // Genera todas las combinaciones posibles, del total a ninguna.
+    function generateConcertCombinations(concerts) {
+        const total = Math.pow(2, concerts.length);
+        const combinations = [];
+
+        for (let mask = total - 1; mask >= 0; mask--) {
+            const selected = concerts.filter((concert, index) => mask & (1 << index));
+            combinations.push({ mask, selected });
+        }
+
+        combinations.sort((a, b) => b.selected.length - a.selected.length || a.mask - b.mask);
+        return combinations;
+    }
+
+    // Fecha en negrita + información extra como etiqueta destacada.
+    function createConcertDetail(concert) {
+        const detail = document.createElement('span');
+        detail.className = 'concert-detail';
+
+        const date = document.createElement('strong');
+        date.className = 'concert-date';
+        date.textContent = concert.date;
+        detail.appendChild(date);
+
+        if (concert.info) {
+            const info = document.createElement('span');
+            info.className = 'concert-info';
+            info.textContent = concert.info;
+            detail.appendChild(info);
+        }
+
+        return detail;
+    }
+
+    function appendConcertDetails(container, concerts) {
+        concerts.forEach((concert, index) => {
+            if (index > 0) container.appendChild(document.createTextNode(' · '));
+            container.appendChild(createConcertDetail(concert));
+        });
+    }
+
+    function appendBoldText(container, value) {
+        const strong = document.createElement('strong');
+        strong.textContent = value;
+        container.appendChild(strong);
+    }
+
+    function createConcertOptionText(selected, concerts) {
+        const text = document.createElement('span');
+        text.className = 'concert-option-text';
+
+        if (selected.length === 0) {
+            if (concerts.length === 1) {
+                text.textContent = 'No puedo participar en el concierto';
+            } else {
+                text.appendChild(document.createTextNode('No puedo participar en '));
+                appendBoldText(text, 'ninguno');
+                text.appendChild(document.createTextNode(' de los conciertos'));
+            }
+            return text;
+        }
+
+        if (selected.length === concerts.length) {
+            if (concerts.length === 1) {
+                text.textContent = 'Puedo participar en el concierto';
+            } else {
+                text.appendChild(document.createTextNode('Puedo participar en '));
+                appendBoldText(text, 'todos');
+                text.appendChild(document.createTextNode(' los conciertos'));
+            }
+            return text;
+        }
+
+        text.appendChild(document.createTextNode('Solo puedo participar en: '));
+        appendConcertDetails(text, selected);
+        return text;
+    }
+
+    function renderConcertSection(entry) {
+        const concerts = entry.concerts || [];
+        concertOptions.innerHTML = '';
+
+        // Sin conciertos: se oculta la pregunta y se pasa directamente a ensayos.
+        if (concerts.length === 0) {
+            concertSection.classList.add('hidden');
+            rehearsalSection.classList.remove('hidden');
+            return;
+        }
+
+        concertSection.classList.remove('hidden');
+        rehearsalSection.classList.add('hidden');
+
+        concertSectionTitle.innerHTML = `Participación en ${concerts.length === 1 ? 'el concierto' : 'los conciertos'} <span data-program-name></span>`;
+        const programName = concertSectionTitle.querySelector('[data-program-name]');
+        if (programName) programName.textContent = PROGRAM_CONFIG.name;
+
+        concertSectionSubtitle.textContent = '';
+        if (concerts.length === 1) {
+            concertSectionSubtitle.appendChild(createConcertDetail(concerts[0]));
+        } else {
+            const subtitleLabel = document.createElement('span');
+            subtitleLabel.className = 'concert-subtitle-label';
+            subtitleLabel.textContent = 'Conciertos previstos: ';
+            concertSectionSubtitle.appendChild(subtitleLabel);
+            appendConcertDetails(concertSectionSubtitle, concerts);
+        }
+
+        if (concerts.length > 5) {
+            console.warn(`Hay ${concerts.length} conciertos: se generarán ${Math.pow(2, concerts.length)} combinaciones.`);
+        }
+
+        generateConcertCombinations(concerts).forEach((combination, index) => {
+            const label = document.createElement('label');
+            label.className = 'radio-option';
+
+            const input = document.createElement('input');
+            input.type = 'radio';
+            input.name = 'concertAvailability';
+            input.value = String(index);
+            input.className = 'concert-choice conditional-required';
+            input.dataset.dates = combination.selected.map(c => c.date).join(', ');
+
+            label.appendChild(input);
+            label.appendChild(createConcertOptionText(combination.selected, concerts));
+            concertOptions.appendChild(label);
+        });
+    }
+
+    // ---------------------------------------------------------------------
     // Selección de agrupación
     // ---------------------------------------------------------------------
 
@@ -333,7 +512,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         readPlanification.checked = false;
         restOfForm.classList.add('hidden');
         confirmationSection.classList.add('hidden');
-        conditionalRequiredInputs.forEach(input => input.required = false);
+        setConditionalRequired(false);
+
+        await ensureGroupData(entry);
+        renderConcertSection(entry);
 
         if (entry.hasPdf) {
             // Flujo normal: descargar y leer la planificación antes de continuar.
@@ -349,7 +531,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         await ensureCalendars(entry);
         restOfForm.classList.remove('hidden');
-        conditionalRequiredInputs.forEach(input => input.required = true);
+        setConditionalRequired(true);
     }
 
     function setupGroups(groups) {
@@ -490,30 +672,31 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await ensureCalendars(activeGroup);
             }
             restOfForm.classList.remove('hidden');
-            conditionalRequiredInputs.forEach(input => input.required = true);
+            setConditionalRequired(true);
             fpInstances.forEach(fp => fp.redraw());
         } else {
             restOfForm.classList.add('hidden');
-            conditionalRequiredInputs.forEach(input => input.required = false);
+            setConditionalRequired(false);
         }
     });
 
-    // Show rehearsal section only if user will attend the concert
-    const concertRadios = document.getElementsByName('concertAvailability');
-    const rehearsalSection = document.getElementById('rehearsal-section');
+    // Mostrar la sección de ensayos solo si puede asistir a algún concierto.
+    function resetRehearsalSection() {
+        rehearsalSection.classList.add('hidden');
+        absenceDatesGroup.classList.add('hidden');
+        document.getElementById('absenceDates').value = '';
+        Array.from(rehearsalRadios).forEach(r => r.checked = false);
+        fpInstances.forEach(fp => fp.clear());
+    }
 
-    concertRadios.forEach(radio => {
-        radio.addEventListener('change', (e) => {
-            if (e.target.value === 'Participa') {
-                rehearsalSection.classList.remove('hidden');
-            } else {
-                rehearsalSection.classList.add('hidden');
-                absenceDatesGroup.classList.add('hidden');
-                document.getElementById('absenceDates').value = '';
-                Array.from(rehearsalRadios).forEach(r => r.checked = false);
-                fpInstances.forEach(fp => fp.clear());
-            }
-        });
+    concertOptions.addEventListener('change', (e) => {
+        if (!e.target.classList.contains('concert-choice')) return;
+
+        if (e.target.dataset.dates) {
+            rehearsalSection.classList.remove('hidden');
+        } else {
+            resetRehearsalSection();
+        }
     });
 
     // Toggle absence dates conditionally
@@ -560,11 +743,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const absenceDates = isMostDaysSelected ? finalAbsenceDates : '-';
 
+            // Lista de conciertos a los que puede asistir (vacío = ninguno).
+            let concertAvailability = '-';
+            if (!concertSection.classList.contains('hidden')) {
+                const selectedDates = document.querySelector('.concert-choice:checked')?.dataset.dates || '';
+                concertAvailability = selectedDates || 'No participa';
+            }
+
             const { error } = await supabase.from("respuestas_asistencia").insert({
                 grupo: selectedGroup,
                 full_name: raw.fullName || '',
                 instrument: raw.instrument || '',
-                concert_availability: raw.concertAvailability || '',
+                concert_availability: concertAvailability,
                 rehearsal_commitment: raw.rehearsalCommitment || '',
                 absence_dates: absenceDates,
                 observations: raw.observations || ''

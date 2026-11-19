@@ -1,6 +1,6 @@
 export const PROGRAM_CONFIG = {
-    name: "Nombre pendiente",
-    nameSlug: "nombre_pendiente",
+    name: "DVOŘÁK 8",
+    nameSlug: "dvorak_8",
     exportFileName: "respuestas_${nameSlug}.xlsx",
 
     // Agrupaciones del programa. Una agrupación solo aparece en el formulario

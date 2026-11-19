@@ -499,10 +499,19 @@ async function fetchRehearsalDates(group = 'orquesta') {
     }
 }
 
+// Compatibilidad: "Participa" (formato antiguo) = todos los conciertos.
+// Formato nuevo: lista de fechas separadas por comas.
+function attendsConcert(row, date) {
+    const value = (row.concert_availability || "").trim();
+    if (!value || value === "No participa") return false;
+    if (value === "Participa") return true;
+    return value.split(',').map(v => v.trim()).includes(date);
+}
+
 function statusEmoji(row, date, isConcert) {
     const commitment = row.rehearsal_commitment;
     if (isConcert) {
-        return (row.concert_availability || "") === "Participa" ? "🟩" : "🟥";
+        return attendsConcert(row, date) ? "🟩" : "🟥";
     }
     if (commitment === "Asistencia regular") return "🟩";
     if (commitment === "No puedo comprometer asistencia regular") return "🟧";
