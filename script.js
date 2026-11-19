@@ -315,6 +315,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const dateString = flatpickr.formatDate(dayElem.dateObj, "d/m/Y");
                     const type = datesData[dateString];
                     if (type) {
+                        // Mostrar el tipo de ensayo al pasar el cursor.
+                        dayElem.title = type;
+                        dayElem.setAttribute('aria-label', `${dateString}: ${type}`);
+
                         const category = categoryColors[type.toLowerCase()];
                         if (category && category.colors) {
                             const c = category.colors;
