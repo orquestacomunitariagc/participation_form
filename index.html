@@ -27,17 +27,18 @@
                     
                     <div class="form-group" id="group-selection" style="border-color: var(--primary-color); background: #fefcf6;">
                         <label><strong>Selecciona tu agrupación:</strong> <span class="required-asterisk">*</span></label>
-                        <div class="radio-group" style="flex-direction: column;">
-                            <label class="radio-option">
-                                <input type="radio" name="grupo" value="orquesta" class="grupo-radio">
-                                <span><strong>Orquesta</strong></span>
-                            </label>
-                            <label class="radio-option">
-                                <input type="radio" name="grupo" value="coro" class="grupo-radio">
-                                <span><strong>Coro</strong></span>
-                            </label>
+                        <div class="radio-group" id="groupOptions" style="flex-direction: column;">
+                            <!-- Las agrupaciones disponibles se generan dinámicamente según los archivos de fechas -->
                         </div>
                     </div>
+
+                    <p id="single-group-display" class="hidden" style="margin-bottom: 15px;">
+                        Agrupación: <strong id="single-group-name"></strong>
+                    </p>
+
+                    <p id="no-groups-display" class="hidden" style="margin-bottom: 15px; color: #e74c3c;">
+                        <strong>Este formulario no está disponible en este momento.</strong>
+                    </p>
                     <p style="margin-bottom: 15px;" id="planification-btn-container" class="hidden">
                         ​⚠️ Antes de rellenar el formulario: descarga y revisa la
                         <button type="button" id="downloadPlan" class="btn-link">
@@ -177,7 +178,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
     <!-- Supabase SDK -->
-    <script type="module" src="script.js?v=6"></script>
+    <script type="module" src="script.js?v=7"></script>
     <script type="module" src="assets/apply-config.js"></script>
 </body>
 
